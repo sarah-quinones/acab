@@ -1,0 +1,12 @@
+[package]
+name = "acab"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+proc-macro2 = "1.0.92"
+unicode-xid = "0.2.6"
+
+[features]
+default = ["alloc"]
+alloc = []
