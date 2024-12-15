@@ -1,3 +1,5 @@
+use core::fmt::{self, Write};
+
 use crate::Span;
 use crate::ident::IdentOrKeyword;
 use crate::pointer::*;
@@ -29,28 +31,28 @@ impl SuffixNoExpDyn<'_> {
 	}
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 #[repr(transparent)]
 pub struct BinDigit {
 	c: uint<u8, 1>,
 }
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 #[repr(transparent)]
 pub struct OctDigit {
 	c: uint<u8, 3>,
 }
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 #[repr(transparent)]
 pub struct DecDigit {
 	c: u8,
 }
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 #[repr(transparent)]
 pub struct HexDigit {
 	// top bit is 1 if uppercase
 	c: uint<u8, 5>,
 }
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 #[repr(transparent)]
 pub struct AsciiDigit {
 	c: uint<u8, 7>,
@@ -60,6 +62,46 @@ reborrow_copy!(DecDigit);
 reborrow_copy!(OctDigit);
 reborrow_copy!(HexDigit);
 reborrow_copy!(AsciiDigit);
+
+impl fmt::Debug for HexDigit {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		let c = if self.is_uppercase() {
+			self.as_byte() - 0xA + b'A'
+		} else if self.c.get() <= 9 {
+			self.as_byte() + b'0'
+		} else {
+			self.as_byte() - 0xA + b'a'
+		};
+		f.write_str("0x")?;
+		f.write_char(char::from_u32(c as u32).unwrap())
+	}
+}
+
+impl fmt::Debug for OctDigit {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		let c = self.c.get() + b'0';
+		f.write_str("0o")?;
+		f.write_char(char::from_u32(c as u32).unwrap())
+	}
+}
+impl fmt::Debug for BinDigit {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		let c = self.c.get() + b'0';
+		f.write_str("0b")?;
+		f.write_char(char::from_u32(c as u32).unwrap())
+	}
+}
+impl fmt::Debug for DecDigit {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		let c = self.c + b'0';
+		f.write_char(char::from_u32(c as u32).unwrap())
+	}
+}
+impl fmt::Debug for AsciiDigit {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		char::from_u32((self.c.get()) as u32).unwrap().fmt(f)
+	}
+}
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct NonZero<T: Copy> {
@@ -467,7 +509,7 @@ mod tests {
 			let TokenTree::Literal(c) = quote!('\u{0__0a_1B}').into_iter().next()? else {
 				panic!()
 			};
-
+			dbg!(Literal::from_token(edition, &c).rb());
 			assert_eq!(
 				*Literal::from_token(edition, &c).rb(),
 				Literal::Char(CharLiteral {
