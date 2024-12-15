@@ -16,6 +16,19 @@ pub struct Suffix<'a, P: Pointer> {
 as_ref!(Suffix, SuffixBox, SuffixRef, SuffixDyn);
 derive_struct!(Suffix, ident);
 
+#[repr(C)]
+pub struct SuffixNoExp<'a, P: Pointer> {
+	repr: Suffix<'a, P>,
+}
+as_ref!(SuffixNoExp, SuffixNoExpBox, SuffixNoExpRef, SuffixNoExpDyn);
+derive_struct!(SuffixNoExp, repr);
+
+impl SuffixNoExpDyn<'_> {
+	pub fn repr(&self) -> SuffixRef<'_> {
+		self.rb().repr
+	}
+}
+
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 #[repr(transparent)]
 pub struct BinDigit {
@@ -42,6 +55,11 @@ pub struct HexDigit {
 pub struct AsciiDigit {
 	c: uint<u8, 7>,
 }
+reborrow_copy!(BinDigit);
+reborrow_copy!(DecDigit);
+reborrow_copy!(OctDigit);
+reborrow_copy!(HexDigit);
+reborrow_copy!(AsciiDigit);
 
 impl OctDigit {
 	pub const fn new(c: u8) -> Option<Self> {

@@ -3,6 +3,8 @@
 
 #[cfg(feature = "alloc")]
 extern crate alloc;
+use core::marker::PhantomData;
+
 #[cfg(feature = "alloc")]
 use alloc::boxed::Box;
 
@@ -53,6 +55,9 @@ impl<'a> ReborrowTarget<'a> for str {
 impl<'a, T> ReborrowTarget<'a> for [T] {
 	type Ref = &'a Self;
 }
+impl<'a, T: ?Sized + ReborrowTarget<'a>> ReborrowTarget<'a> for Option<PhantomData<T>> {
+	type Ref = Option<T::Ref>;
+}
 
 impl Reborrow for &str {
 	#[cfg(feature = "alloc")]
@@ -81,6 +86,27 @@ impl<T: Reborrow> Reborrow for &[T] {
 	#[cfg(feature = "alloc")]
 	fn to_box(&self) -> Self::Box {
 		Box::from_iter(self.iter().map(|i| T::to_box(i)))
+	}
+}
+
+impl<T: Reborrow> Reborrow for Option<T> {
+	#[cfg(feature = "alloc")]
+	type Box = Option<T::Box>;
+	type Target = Option<PhantomData<T::Target>>;
+
+	fn __rb(&self) -> <Self::Target as ReborrowTarget<'_>>::Ref {
+		match self {
+			Some(this) => Some(this.__rb()),
+			None => None,
+		}
+	}
+
+	#[cfg(feature = "alloc")]
+	fn to_box(&self) -> Self::Box {
+		match self {
+			Some(this) => Some(this.to_box()),
+			None => None,
+		}
 	}
 }
 

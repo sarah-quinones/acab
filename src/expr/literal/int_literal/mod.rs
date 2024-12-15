@@ -45,6 +45,11 @@ impl BinLiteralDyn<'_> {
 		self.len() == 0
 	}
 
+	pub const fn lsb(&self) -> BinDigit {
+		let MaybeUnderscore::Digit(digit) = self.get(0) else { panic!() };
+		digit
+	}
+
 	pub const fn get(&self, idx: usize) -> MaybeUnderscore<BinDigit> {
 		assert!(idx < self.len());
 		let this = *self.rb();
@@ -64,6 +69,11 @@ impl OctLiteralDyn<'_> {
 
 	pub const fn is_empty(&self) -> bool {
 		self.len() == 0
+	}
+
+	pub const fn lsb(&self) -> OctDigit {
+		let MaybeUnderscore::Digit(digit) = self.get(0) else { panic!() };
+		digit
 	}
 
 	pub const fn get(&self, idx: usize) -> MaybeUnderscore<OctDigit> {
@@ -87,6 +97,11 @@ impl HexLiteralDyn<'_> {
 		self.len() == 0
 	}
 
+	pub const fn lsb(&self) -> HexDigit {
+		let MaybeUnderscore::Digit(digit) = self.get(0) else { panic!() };
+		digit
+	}
+
 	pub const fn get(&self, idx: usize) -> MaybeUnderscore<HexDigit> {
 		assert!(idx < self.len());
 		let this = *self.rb();
@@ -108,6 +123,11 @@ impl DecLiteralDyn<'_> {
 		self.len() == 0
 	}
 
+	pub const fn lsb(&self) -> DecDigit {
+		let MaybeUnderscore::Digit(digit) = self.get(0) else { panic!() };
+		digit
+	}
+
 	pub const fn get(&self, idx: usize) -> MaybeUnderscore<DecDigit> {
 		assert!(idx < self.len());
 		let this = *self.rb();
@@ -122,3 +142,20 @@ impl DecLiteralDyn<'_> {
 		}
 	}
 }
+
+pub enum IntLiteralRepr<'a, P: Pointer> {
+	Dec(DecLiteral<'a, P>),
+	Bin(BinLiteral<'a, P>),
+	Oct(OctLiteral<'a, P>),
+	Hex(HexLiteral<'a, P>),
+}
+as_ref!(IntLiteralRepr, IntLiteralReprBox, IntLiteralReprRef, IntLiteralReprDyn);
+derive_enum!(IntLiteralRepr, Dec, Bin, Oct, Hex);
+
+pub struct IntLiteral<'a, P: Pointer> {
+	pub repr: IntLiteralRepr<'a, P>,
+	pub suffix: SuffixNoExp<'a, P>,
+	pub span: Span,
+}
+as_ref!(IntLiteral, IntLiteralBox, IntLiteralRef, IntLiteralDyn);
+derive_struct!(IntLiteral, repr, suffix, span);

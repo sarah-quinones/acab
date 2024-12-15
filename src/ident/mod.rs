@@ -36,11 +36,11 @@ derive_enum!(IdentRepr, Normal, Raw);
 
 #[repr(C)]
 pub struct Ident<'a, P: Pointer> {
-	pub ident: IdentRepr<'a, P>,
+	pub repr: IdentRepr<'a, P>,
 	pub span: Span,
 }
 as_ref!(Ident, IdentBox, IdentRef, IdentDyn);
-derive_struct!(Ident, ident, span);
+derive_struct!(Ident, repr, span);
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum IdentOrKeywordParseError {
@@ -182,7 +182,7 @@ impl<'a, P: Pointer> Ident<'a, P> {
 		match NonKeywordIdent::new(edition, source) {
 			Ok(ident) => Ok(Self {
 				span,
-				ident: IdentRepr::Normal(ident),
+				repr: IdentRepr::Normal(ident),
 			}),
 			Err(e) => Err(e),
 		}
@@ -192,7 +192,7 @@ impl<'a, P: Pointer> Ident<'a, P> {
 		match RawIdent::new(edition, source) {
 			Ok(ident) => Ok(Self {
 				span,
-				ident: IdentRepr::Raw(ident),
+				repr: IdentRepr::Raw(ident),
 			}),
 			Err(e) => Err(e),
 		}
@@ -201,7 +201,7 @@ impl<'a, P: Pointer> Ident<'a, P> {
 
 impl IdentDyn<'_> {
 	pub const fn as_str(&self) -> &str {
-		match self.rb().ident {
+		match self.rb().repr {
 			IdentRepr::Normal(ident) => ident.source,
 			IdentRepr::Raw(ident) => ident.source,
 		}
