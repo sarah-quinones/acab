@@ -10,3 +10,6 @@ unicode-xid = "0.2.6"
 [features]
 default = ["alloc"]
 alloc = []
+
+[dev-dependencies]
+quote = "1.0.37"

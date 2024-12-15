@@ -1,3 +1,5 @@
+use char_literal::NonZeroUnicodeEscape;
+
 use super::char_literal::{AsciiEscape, ByteDigits, ByteEscape, QuoteEscape, UnicodeEscape};
 use super::*;
 
@@ -86,13 +88,13 @@ impl ExcludeList for UnicodeEscapeForCStrForbidList {
 		let null = HexDigit::new_lowercase(0).unwrap();
 
 		let mut esc = [UnicodeEscape {
-			digits: StackVec::<_, 1, 6>::new([null]),
+			chars: StackVec::<_, 1, 6>::new([(null, 0)]),
 		}; 6];
 
 		let mut i = 1;
 		while i < 6 {
 			esc[i] = esc[i - 1];
-			esc[i].digits.push(null);
+			esc[i].chars.push((null, 0));
 
 			i += 1;
 		}
@@ -100,9 +102,8 @@ impl ExcludeList for UnicodeEscapeForCStrForbidList {
 		esc
 	};
 }
-pub type UnicodeEscapeForCStr = Exclude<UnicodeEscapeForCStrForbidList>;
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum StrContinueWhitespace {
 	HorizontalTabulation,
 	LineFeed,
@@ -126,7 +127,7 @@ derive_enum!(CharForStr, Verbatim, Quote, Ascii, Unicode, Continue);
 pub enum CharForCStr<'a, P: Pointer> {
 	Verbatim(CharForCStrVerbatim),
 	Byte(ByteEscapeForCStr),
-	Unicode(UnicodeEscapeForCStr),
+	Unicode(NonZeroUnicodeEscape),
 	Continue(P::Boxed<'a, [StrContinueWhitespace]>),
 }
 as_ref!(CharForCStr, CharForCStrBox, CharForCStrRef, CharForCStrDyn);
@@ -146,7 +147,7 @@ derive_enum!(AsciiForStr, Verbatim, Quote, Byte, Continue);
 pub struct StrLiteral<'a, P: Pointer> {
 	char_contents: P::Boxed<'a, [u32]>,
 	other_contents: P::Boxed<'a, [CharForStr<'a, P>]>,
-	pub suffix: Suffix<'a, P>,
+	pub suffix: Option<Suffix<'a, P>>,
 	pub span: Span,
 }
 as_ref!(StrLiteral, StrLiteralBox, StrLiteralRef, StrLiteralDyn);
@@ -156,7 +157,7 @@ derive_struct!(StrLiteral, char_contents, other_contents, suffix, span);
 pub struct RawStrLiteral<'a, P: Pointer> {
 	pub hash_count: u8,
 	pub contents: P::Boxed<'a, [CharForRawStrVerbatim]>,
-	pub suffix: Suffix<'a, P>,
+	pub suffix: Option<Suffix<'a, P>>,
 	pub span: Span,
 }
 as_ref!(RawStrLiteral, RawStrLiteralBox, RawStrLiteralRef, RawStrLiteralDyn);
@@ -166,7 +167,7 @@ derive_struct!(RawStrLiteral, hash_count, contents, suffix, span);
 pub struct ByteStrLiteral<'a, P: Pointer> {
 	ascii_contents: P::Boxed<'a, [u8]>,
 	other_contents: P::Boxed<'a, [AsciiForStr<'a, P>]>,
-	pub suffix: Suffix<'a, P>,
+	pub suffix: Option<Suffix<'a, P>>,
 	pub span: Span,
 }
 as_ref!(ByteStrLiteral, ByteStrLiteralBox, ByteStrLiteralRef, ByteStrLiteralDyn);
@@ -176,7 +177,7 @@ derive_struct!(ByteStrLiteral, ascii_contents, other_contents, suffix, span);
 pub struct RawByteStrLiteral<'a, P: Pointer> {
 	pub hash_count: u8,
 	pub contents: P::Boxed<'a, [AsciiForRawStrVerbatim]>,
-	pub suffix: Suffix<'a, P>,
+	pub suffix: Option<Suffix<'a, P>>,
 	pub span: Span,
 }
 
@@ -187,7 +188,7 @@ derive_struct!(RawByteStrLiteral, hash_count, contents, suffix, span);
 pub struct CStrLiteral<'a, P: Pointer> {
 	char_contents: P::Boxed<'a, [u32]>,
 	other_contents: P::Boxed<'a, [CharForCStr<'a, P>]>,
-	pub suffix: Suffix<'a, P>,
+	pub suffix: Option<Suffix<'a, P>>,
 	pub span: Span,
 }
 as_ref!(CStrLiteral, CStrLiteralBox, CStrLiteralRef, CStrLiteralDyn);
@@ -197,7 +198,7 @@ derive_struct!(CStrLiteral, char_contents, other_contents, suffix, span);
 pub struct RawCStrLiteral<'a, P: Pointer> {
 	pub hash_count: u8,
 	pub contents: P::Boxed<'a, [CharForRawCStrVerbatim]>,
-	pub suffix: Suffix<'a, P>,
+	pub suffix: Option<Suffix<'a, P>>,
 	pub span: Span,
 }
 as_ref!(RawCStrLiteral, RawCStrLiteralBox, RawCStrLiteralRef, RawCStrLiteralDyn);
@@ -302,5 +303,36 @@ impl RawCStrLiteralDyn<'_> {
 
 	pub const fn get(&self, idx: usize) -> CharForRawCStrVerbatim {
 		self.rb().contents[idx]
+	}
+}
+
+impl Spanned for StrLiteralDyn<'_> {
+	fn span(&self) -> Span {
+		self.rb().span
+	}
+}
+impl Spanned for RawStrLiteralDyn<'_> {
+	fn span(&self) -> Span {
+		self.rb().span
+	}
+}
+impl Spanned for ByteStrLiteralDyn<'_> {
+	fn span(&self) -> Span {
+		self.rb().span
+	}
+}
+impl Spanned for RawByteStrLiteralDyn<'_> {
+	fn span(&self) -> Span {
+		self.rb().span
+	}
+}
+impl Spanned for CStrLiteralDyn<'_> {
+	fn span(&self) -> Span {
+		self.rb().span
+	}
+}
+impl Spanned for RawCStrLiteralDyn<'_> {
+	fn span(&self) -> Span {
+		self.rb().span
 	}
 }

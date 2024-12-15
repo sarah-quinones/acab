@@ -6,6 +6,7 @@ pub enum MaybeUnderscore<Digit> {
 	Digit(Digit),
 }
 
+#[repr(C)]
 pub struct BinLiteral<'a, P: Pointer> {
 	// in chunks of u2
 	contents: P::Boxed<'a, [u8]>,
@@ -14,6 +15,7 @@ pub struct BinLiteral<'a, P: Pointer> {
 as_ref!(BinLiteral, BinLiteralBox, BinLiteralRef, BinLiteralDyn);
 derive_struct!(BinLiteral, contents, len);
 
+#[repr(C)]
 pub struct DecLiteral<'a, P: Pointer> {
 	// each chunk of u8 stores two values in base 11
 	contents: P::Boxed<'a, [u8]>,
@@ -22,6 +24,7 @@ pub struct DecLiteral<'a, P: Pointer> {
 as_ref!(DecLiteral, DecLiteralBox, DecLiteralRef, DecLiteralDyn);
 derive_struct!(DecLiteral, contents, len);
 
+#[repr(C)]
 pub struct OctLiteral<'a, P: Pointer> {
 	// in chunks of u4
 	contents: P::Boxed<'a, [u8]>,
@@ -30,6 +33,7 @@ pub struct OctLiteral<'a, P: Pointer> {
 as_ref!(OctLiteral, OctLiteralBox, OctLiteralRef, OctLiteralDyn);
 derive_struct!(OctLiteral, contents, len);
 
+#[repr(C)]
 pub struct HexLiteral<'a, P: Pointer> {
 	contents: P::Boxed<'a, [u8]>,
 }
@@ -143,6 +147,7 @@ impl DecLiteralDyn<'_> {
 	}
 }
 
+#[repr(C)]
 pub enum IntLiteralRepr<'a, P: Pointer> {
 	Dec(DecLiteral<'a, P>),
 	Bin(BinLiteral<'a, P>),
@@ -152,6 +157,7 @@ pub enum IntLiteralRepr<'a, P: Pointer> {
 as_ref!(IntLiteralRepr, IntLiteralReprBox, IntLiteralReprRef, IntLiteralReprDyn);
 derive_enum!(IntLiteralRepr, Dec, Bin, Oct, Hex);
 
+#[repr(C)]
 pub struct IntLiteral<'a, P: Pointer> {
 	pub repr: IntLiteralRepr<'a, P>,
 	pub suffix: SuffixNoExp<'a, P>,
@@ -159,3 +165,9 @@ pub struct IntLiteral<'a, P: Pointer> {
 }
 as_ref!(IntLiteral, IntLiteralBox, IntLiteralRef, IntLiteralDyn);
 derive_struct!(IntLiteral, repr, suffix, span);
+
+impl Spanned for IntLiteralDyn<'_> {
+	fn span(&self) -> Span {
+		self.rb().span
+	}
+}

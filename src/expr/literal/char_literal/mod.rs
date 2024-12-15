@@ -36,27 +36,6 @@ const fn contains_byte_escape(needle: ByteEscape, haystack: &[ByteEscape]) -> bo
 	false
 }
 
-const fn contains_unicode_escape(needle: UnicodeEscape, haystack: &[UnicodeEscape]) -> bool {
-	let mut haystack = haystack;
-	while let Some((&hay, next)) = haystack.split_first() {
-		if needle.digits.len() == hay.digits.len() {
-			let mut i = 0;
-			while i < needle.digits.len() {
-				let needle = needle.digits.as_slice()[i];
-				let hay = hay.digits.as_slice()[i];
-
-				if needle.is_uppercase() == hay.is_uppercase() && needle.as_byte() == hay.as_byte() {
-					return true;
-				}
-
-				i += 1;
-			}
-		}
-		haystack = next;
-	}
-	false
-}
-
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum QuoteEscape {
 	Single,
@@ -134,9 +113,15 @@ reborrow_copy!(ByteEscape);
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct UnicodeEscape {
-	pub digits: StackVec<HexDigit, 1, 6>,
+	pub chars: StackVec<(HexDigit, usize), 1, 6>,
 }
 reborrow_copy!(UnicodeEscape);
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct NonZeroUnicodeEscape {
+	pub chars: StackVec<(NonZero<HexDigit>, usize), 1, 6>,
+}
+reborrow_copy!(NonZeroUnicodeEscape);
 
 impl<E: ExcludeList<Type = char>> Exclude<E, char> {
 	pub const fn new(c: char) -> Option<Self> {
@@ -154,16 +139,6 @@ impl<E: ExcludeList<Type = ByteEscape>> Exclude<E, ByteEscape> {
 			None
 		} else {
 			Some(Self { inner: byte })
-		}
-	}
-}
-
-impl<E: ExcludeList<Type = UnicodeEscape>> Exclude<E, UnicodeEscape> {
-	pub const fn new(unicode: UnicodeEscape) -> Option<Self> {
-		if contains_unicode_escape(unicode, E::EXCLUDED_VALUES) {
-			None
-		} else {
-			Some(Self { inner: unicode })
 		}
 	}
 }
@@ -212,7 +187,7 @@ reborrow_copy!(Byte);
 #[repr(C)]
 pub struct CharLiteral<'a, P: Pointer> {
 	pub char: Char,
-	pub suffix: Suffix<'a, P>,
+	pub suffix: Option<Suffix<'a, P>>,
 	pub span: Span,
 }
 as_ref!(CharLiteral, CharLiteralBox, CharLiteralRef, CharLiteralDyn);
@@ -221,8 +196,19 @@ derive_struct!(CharLiteral, char, suffix, span);
 #[repr(C)]
 pub struct ByteLiteral<'a, P: Pointer> {
 	pub byte: Byte,
-	pub suffix: Suffix<'a, P>,
+	pub suffix: Option<Suffix<'a, P>>,
 	pub span: Span,
 }
 as_ref!(ByteLiteral, ByteLiteralBox, ByteLiteralRef, ByteLiteralDyn);
 derive_struct!(ByteLiteral, byte, suffix, span);
+
+impl Spanned for CharLiteralDyn<'_> {
+	fn span(&self) -> Span {
+		self.rb().span
+	}
+}
+impl Spanned for ByteLiteralDyn<'_> {
+	fn span(&self) -> Span {
+		self.rb().span
+	}
+}

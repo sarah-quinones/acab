@@ -197,6 +197,28 @@ impl<'a, P: Pointer> Ident<'a, P> {
 			Err(e) => Err(e),
 		}
 	}
+
+	/// # Safety
+	/// see [`NonKeywordIdent::new_unchecked`]
+	pub const unsafe fn new_unchecked(edition: Edition, source: impl PointerTo<'a, str, Pointer = P>, span: Span) -> Self {
+		unsafe {
+			Self {
+				span,
+				repr: IdentRepr::Normal(NonKeywordIdent::new_unchecked(edition, source)),
+			}
+		}
+	}
+
+	/// # Safety
+	/// see [`RawIdent::new_unchecked`]
+	pub const unsafe fn raw_unchecked(edition: Edition, source: impl PointerTo<'a, str, Pointer = P>, span: Span) -> Self {
+		unsafe {
+			Self {
+				span,
+				repr: IdentRepr::Raw(RawIdent::new_unchecked(edition, source)),
+			}
+		}
+	}
 }
 
 impl IdentDyn<'_> {

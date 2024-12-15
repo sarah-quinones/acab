@@ -1,3 +1,4 @@
+#![allow(clippy::missing_transmute_annotations)]
 #![deny(elided_lifetimes_in_associated_constant, elided_lifetimes_in_paths, clippy::transmute_undefined_repr)]
 #![no_std]
 
@@ -58,6 +59,9 @@ impl<'a, T> ReborrowTarget<'a> for [T] {
 impl<'a, T: ?Sized + ReborrowTarget<'a>> ReborrowTarget<'a> for Option<PhantomData<T>> {
 	type Ref = Option<T::Ref>;
 }
+impl<'a, T: ?Sized + ReborrowTarget<'a>, U: ?Sized + ReborrowTarget<'a>> ReborrowTarget<'a> for (PhantomData<T>, PhantomData<U>) {
+	type Ref = (T::Ref, U::Ref);
+}
 
 impl Reborrow for &str {
 	#[cfg(feature = "alloc")]
@@ -95,21 +99,29 @@ impl<T: Reborrow> Reborrow for Option<T> {
 	type Target = Option<PhantomData<T::Target>>;
 
 	fn __rb(&self) -> <Self::Target as ReborrowTarget<'_>>::Ref {
-		match self {
-			Some(this) => Some(this.__rb()),
-			None => None,
-		}
+		self.as_ref().map(|this| this.__rb())
 	}
 
 	#[cfg(feature = "alloc")]
 	fn to_box(&self) -> Self::Box {
-		match self {
-			Some(this) => Some(this.to_box()),
-			None => None,
-		}
+		self.as_ref().map(|this| this.to_box())
 	}
 }
 
+impl<T: Reborrow, U: Reborrow> Reborrow for (T, U) {
+	#[cfg(feature = "alloc")]
+	type Box = (T::Box, U::Box);
+	type Target = (PhantomData<T::Target>, PhantomData<U::Target>);
+
+	fn __rb(&self) -> <Self::Target as ReborrowTarget<'_>>::Ref {
+		(self.0.__rb(), self.1.__rb())
+	}
+
+	#[cfg(feature = "alloc")]
+	fn to_box(&self) -> Self::Box {
+		(self.0.to_box(), self.1.to_box())
+	}
+}
 // as_ref!(X, XBox, XRef, XDyn);
 macro_rules! as_ref {
 	($ty: ident, $boxed: ident, $reference: ident, $dyn: ident) => {
@@ -197,6 +209,21 @@ macro_rules! derive_struct {
 			}
 		}
 
+		impl<'a> ::core::cmp::PartialEq for $ty<'a, $crate::pointer::Ref> {
+			fn eq(&self, other: &Self) -> bool {
+				true $(&& self.$field == other.$field)*
+			}
+		}
+		impl<'a> ::core::cmp::Eq for $ty<'a, $crate::pointer::Ref> {
+		}
+		impl<'a> ::core::cmp::PartialEq for $ty<'a, $crate::pointer::Boxed> {
+			fn eq(&self, other: &Self) -> bool {
+				self.rb() == other.rb()
+			}
+		}
+		impl<'a> ::core::cmp::Eq for $ty<'a, $crate::pointer::Boxed> {
+		}
+
 		#[cfg(feature = "alloc")]
 		impl<'a> $ty<'a, $crate::pointer::Ref> {
 			fn __to_box(self) -> $ty<'static, $crate::pointer::Boxed> {
@@ -241,6 +268,24 @@ macro_rules! derive_enum {
 					$(Self::$field(this) => { $ty::$field($crate::Reborrow::to_box(this).into()) },)*
 				}
 			}
+		}
+
+		impl<'a> ::core::cmp::PartialEq for $ty<'a, $crate::pointer::Ref> {
+			fn eq(&self, other: &Self) -> bool {
+				match (self, other) {
+					$((Self::$field(left), Self::$field(right)) => { left == right }, )*
+					_ => false,
+				}
+			}
+		}
+		impl<'a> ::core::cmp::Eq for $ty<'a, $crate::pointer::Ref> {
+		}
+		impl<'a> ::core::cmp::PartialEq for $ty<'a, $crate::pointer::Boxed> {
+			fn eq(&self, other: &Self) -> bool {
+				self.rb() == other.rb()
+			}
+		}
+		impl<'a> ::core::cmp::Eq for $ty<'a, $crate::pointer::Boxed> {
 		}
 	};
 }
@@ -449,15 +494,32 @@ pub mod pointer {
 			self.as_slice().fmt(f)
 		}
 	}
+
+	#[cfg(test)]
+	mod reexport {
+		extern crate std;
+
+		pub use quote::quote;
+
+		pub use alloc::vec;
+		pub use alloc::vec::Vec;
+		pub use std::dbg;
+	}
+
+	#[cfg(test)]
+	pub use reexport::*;
+
+	pub(crate) use crate::prelude::*;
 }
 
 pub mod expr;
 pub mod ident;
 pub mod keyword;
+pub mod span;
 
 pub use expr::Expr;
 pub use ident::Ident;
-pub use proc::Span;
+pub use span::Span;
 
 pub trait ReborrowTarget<'a, Outlives = &'a Self> {
 	type Ref;
@@ -489,6 +551,10 @@ impl<T: ?Sized + Reborrow> Reborrow for &T {
 	}
 }
 
+pub trait Spanned {
+	fn span(&self) -> Span;
+}
+
 pub mod prelude {
-	pub use crate::Reborrow;
+	pub use crate::{Reborrow, Spanned};
 }
