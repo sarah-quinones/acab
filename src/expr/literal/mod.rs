@@ -509,7 +509,6 @@ mod tests {
 			let TokenTree::Literal(c) = quote!('\u{0__0a_1B}').into_iter().next()? else {
 				panic!()
 			};
-			dbg!(Literal::from_token(edition, &c).rb());
 			assert_eq!(
 				*Literal::from_token(edition, &c).rb(),
 				Literal::Char(CharLiteral {
