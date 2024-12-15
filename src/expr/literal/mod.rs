@@ -346,59 +346,7 @@ mod alloc {
 			let mut repr = &*token.to_string();
 
 			if repr.starts_with('\'') {
-				// char literal
-				repr = &repr[1..];
-				let Some(c) = repr.chars().next() else { panic!() };
-				repr = &repr[c.len_utf8()..];
-				let c = if c != '\\' {
-					Char::Verbatim(CharVerbatim::new(c).unwrap())
-				} else {
-					let c = repr.chars().next().unwrap();
-					repr = &repr[c.len_utf8()..];
-					match c {
-						'\'' => Char::Quote(QuoteEscape::Single),
-						'\"' => Char::Quote(QuoteEscape::Double),
-						'n' => Char::Ascii(AsciiEscape::LineFeed),
-						'r' => Char::Ascii(AsciiEscape::CarriageReturn),
-						't' => Char::Ascii(AsciiEscape::HorizontalTabulation),
-						'\\' => Char::Ascii(AsciiEscape::Backslash),
-						'\0' => Char::Ascii(AsciiEscape::Null),
-						'x' => {
-							let msb = repr.as_bytes()[0];
-							let lsb = repr.as_bytes()[1];
-							repr = &repr[2..];
-
-							let msb = OctDigit::new(msb - b'0').unwrap();
-							let lsb = HexDigit::from_byte_literal(lsb).unwrap();
-							Char::Ascii(AsciiEscape::Digits(AsciiDigits { msb, lsb }))
-						},
-						'u' => {
-							repr = &repr[1..];
-							let mut bytes = repr.as_bytes();
-
-							let mut chars = StackVec::new([(HexDigit::from_byte_literal(bytes[0]).unwrap(), 0)]);
-							bytes = &bytes[1..];
-							repr = &repr[1..];
-
-							while bytes[0] != b'}' {
-								let b = bytes[0];
-								bytes = &bytes[1..];
-								repr = &repr[1..];
-
-								if b == b'_' {
-									chars.last_mut().unwrap().1 += 1;
-								} else {
-									chars.push((HexDigit::from_byte_literal(b).unwrap(), 0));
-								}
-							}
-							repr = &repr[1..];
-
-							Char::Unicode(UnicodeEscape { chars })
-						},
-						_ => panic!(),
-					}
-				};
-				repr = &repr[1..];
+				let c = parse_char_lit(&mut repr);
 
 				return Self::Char(CharLiteral {
 					char: c,
@@ -418,6 +366,63 @@ mod alloc {
 
 			todo!()
 		}
+	}
+
+	fn parse_char_lit(repr: &mut &str) -> Char {
+		// char literal
+		*repr = &repr[1..];
+		let Some(c) = repr.chars().next() else { panic!() };
+		*repr = &repr[c.len_utf8()..];
+		let c = if c != '\\' {
+			Char::Verbatim(CharVerbatim::new(c).unwrap())
+		} else {
+			let c = repr.chars().next().unwrap();
+			*repr = &repr[c.len_utf8()..];
+			match c {
+				'\'' => Char::Quote(QuoteEscape::Single),
+				'\"' => Char::Quote(QuoteEscape::Double),
+				'n' => Char::Ascii(AsciiEscape::LineFeed),
+				'r' => Char::Ascii(AsciiEscape::CarriageReturn),
+				't' => Char::Ascii(AsciiEscape::HorizontalTabulation),
+				'\\' => Char::Ascii(AsciiEscape::Backslash),
+				'\0' => Char::Ascii(AsciiEscape::Null),
+				'x' => {
+					let msb = repr.as_bytes()[0];
+					let lsb = repr.as_bytes()[1];
+					*repr = &repr[2..];
+
+					let msb = OctDigit::new(msb - b'0').unwrap();
+					let lsb = HexDigit::from_byte_literal(lsb).unwrap();
+					Char::Ascii(AsciiEscape::Digits(AsciiDigits { msb, lsb }))
+				},
+				'u' => {
+					*repr = &repr[1..];
+					let mut bytes = repr.as_bytes();
+
+					let mut chars = StackVec::new([(HexDigit::from_byte_literal(bytes[0]).unwrap(), 0)]);
+					bytes = &bytes[1..];
+					*repr = &repr[1..];
+
+					while bytes[0] != b'}' {
+						let b = bytes[0];
+						bytes = &bytes[1..];
+						*repr = &repr[1..];
+
+						if b == b'_' {
+							chars.last_mut().unwrap().1 += 1;
+						} else {
+							chars.push((HexDigit::from_byte_literal(b).unwrap(), 0));
+						}
+					}
+					*repr = &repr[1..];
+
+					Char::Unicode(UnicodeEscape { chars })
+				},
+				_ => panic!(),
+			}
+		};
+		*repr = &repr[1..];
+		c
 	}
 }
 
