@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+konst = { version = "0.3.15", features = ["cmp", "iter"], default-features = false }
 proc-macro2 = "1.0.92"
 unicode-xid = "0.2.6"
 

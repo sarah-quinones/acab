@@ -1,12 +1,13 @@
 #[derive(Copy, Clone, Debug)]
-pub struct Span {
-	pub repr: proc::Span,
+enum SpanRepr {
+	CallSite,
+	MixedSite,
+	Internal(proc::Span),
 }
 
-impl From<proc::Span> for Span {
-	fn from(repr: proc::Span) -> Self {
-		Self { repr }
-	}
+#[derive(Copy, Clone, Debug)]
+pub struct Span {
+	repr: SpanRepr,
 }
 
 impl PartialEq for Span {
@@ -17,19 +18,33 @@ impl PartialEq for Span {
 impl Eq for Span {}
 
 impl Span {
+	pub(crate) fn from_repr(span: proc::Span) -> Self {
+		Self {
+			repr: SpanRepr::Internal(span),
+		}
+	}
+
+	pub(crate) fn repr(&self) -> proc::Span {
+		match self.repr {
+			SpanRepr::CallSite => proc::Span::call_site(),
+			SpanRepr::MixedSite => proc::Span::mixed_site(),
+			SpanRepr::Internal(span) => span,
+		}
+	}
+
 	pub fn located_at(&self, other: Self) -> Self {
-		self.repr.located_at(other.repr).into()
+		Self::from_repr(self.repr().located_at(other.repr()))
 	}
 
 	pub fn resolved_at(&self, other: Self) -> Self {
-		self.repr.resolved_at(other.repr).into()
+		Self::from_repr(self.repr().resolved_at(other.repr()))
 	}
 
-	pub fn call_site() -> Self {
-		proc::Span::call_site().into()
+	pub const fn call_site() -> Self {
+		Span { repr: SpanRepr::CallSite }
 	}
 
-	pub fn mixed_site() -> Self {
-		proc::Span::mixed_site().into()
+	pub const fn mixed_site() -> Self {
+		Span { repr: SpanRepr::MixedSite }
 	}
 }

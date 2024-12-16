@@ -1,6 +1,6 @@
 #![allow(clippy::missing_transmute_annotations)]
 #![deny(elided_lifetimes_in_associated_constant, elided_lifetimes_in_paths, clippy::transmute_undefined_repr)]
-#![no_std]
+#![cfg_attr(not(test), no_std)]
 
 #[cfg(feature = "alloc")]
 extern crate alloc;
@@ -17,6 +17,37 @@ pub enum Edition {
 	Edition2018,
 	Edition2021,
 	Edition2024,
+}
+
+macro_rules! derive_enum_debug {
+	(
+		$(#[$attr: meta])*
+		pub enum $name: ident {
+			$($variant: ident $( ( $($members: ty),* $(,)? ) )? ),* $(,)?
+		}
+	) => {
+		$(#[$attr])*
+		#[repr(u8)]
+		pub enum $name {
+			$($variant $( ( $($members,)* ) )? ,)*
+		}
+
+		impl ::core::fmt::Debug for $name {
+			fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+				$(#[$attr])*
+				#[repr(u8)]
+				#[derive(Debug)]
+				#[allow(dead_code)]
+				pub enum __Impl__ {
+					$($variant $( ( $($members,)* ) )? ,)*
+				}
+
+				let as_impl = unsafe { ::core::mem::transmute::<&$name, &__Impl__>(self) };
+				f.write_str(::core::concat!(::core::stringify!($name), "::"))?;
+				::core::fmt::Debug::fmt(as_impl, f)
+			}
+		}
+	};
 }
 
 macro_rules! reborrow_copy {
@@ -184,16 +215,10 @@ macro_rules! as_ref {
 	};
 }
 
-macro_rules! derive_struct {
+macro_rules! derive_struct_copy_clone {
 	($ty: ident, $($field: ident),* $(,)? ) => {
 		impl<'a> ::core::marker::Copy for $ty<'a, $crate::pointer::Ref> {}
 		impl<'a> ::core::clone::Clone for $ty<'a, $crate::pointer::Ref> { fn clone(&self) -> Self { *self } }
-		impl<'a> ::core::fmt::Debug for $ty<'a, $crate::pointer::Ref> {
-			fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-				f.debug_struct(::core::stringify!($ty))$(.field( ::core::stringify!($field), &self.$field ))*.finish()
-			}
-		}
-
 		#[cfg(feature = "alloc")]
 		impl<'a> ::core::clone::Clone for $ty<'a, $crate::pointer::Boxed> {
 			fn clone(&self) -> Self {
@@ -209,11 +234,6 @@ macro_rules! derive_struct {
 			}
 		}
 
-		impl<'a> ::core::cmp::PartialEq for $ty<'a, $crate::pointer::Ref> {
-			fn eq(&self, other: &Self) -> bool {
-				true $(&& self.$field == other.$field)*
-			}
-		}
 		impl<'a> ::core::cmp::Eq for $ty<'a, $crate::pointer::Ref> {
 		}
 		impl<'a> ::core::cmp::PartialEq for $ty<'a, $crate::pointer::Boxed> {
@@ -235,17 +255,27 @@ macro_rules! derive_struct {
 	};
 }
 
-macro_rules! derive_enum {
+macro_rules! derive_struct {
+	($ty: ident, $($field: ident),* $(,)? ) => {
+		derive_struct_copy_clone!($ty, $($field,)*);
+		impl<'a> ::core::fmt::Debug for $ty<'a, $crate::pointer::Ref> {
+			fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+				f.debug_struct(::core::stringify!($ty))$(.field( ::core::stringify!($field), &self.$field ))*.finish()
+			}
+		}
+
+		impl<'a> ::core::cmp::PartialEq for $ty<'a, $crate::pointer::Ref> {
+			fn eq(&self, other: &Self) -> bool {
+				true $(&& self.$field == other.$field)*
+			}
+		}
+	};
+}
+
+macro_rules! derive_enum_copy_clone {
 	($ty: ident, $($field: ident),* $(,)? ) => {
 		impl<'a> ::core::marker::Copy for $ty<'a, $crate::pointer::Ref> {}
 		impl<'a> ::core::clone::Clone for $ty<'a, $crate::pointer::Ref> { fn clone(&self) -> Self { *self } }
-		impl<'a> ::core::fmt::Debug for $ty<'a, $crate::pointer::Ref> {
-			fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-				match self {
-					$(Self::$field(this) => { f.debug_tuple(::core::concat!(::core::stringify!($ty), "::", ::core::stringify!($field))).field(this).finish() },)*
-				}
-			}
-		}
 		#[cfg(feature = "alloc")]
 		impl<'a> ::core::clone::Clone for $ty<'a, $crate::pointer::Boxed> {
 			fn clone(&self) -> Self {
@@ -270,14 +300,6 @@ macro_rules! derive_enum {
 			}
 		}
 
-		impl<'a> ::core::cmp::PartialEq for $ty<'a, $crate::pointer::Ref> {
-			fn eq(&self, other: &Self) -> bool {
-				match (self, other) {
-					$((Self::$field(left), Self::$field(right)) => { left == right }, )*
-					_ => false,
-				}
-			}
-		}
 		impl<'a> ::core::cmp::Eq for $ty<'a, $crate::pointer::Ref> {
 		}
 		impl<'a> ::core::cmp::PartialEq for $ty<'a, $crate::pointer::Boxed> {
@@ -290,14 +312,37 @@ macro_rules! derive_enum {
 	};
 }
 
+macro_rules! derive_enum {
+	($ty: ident, $($field: ident),* $(,)? ) => {
+		derive_enum_copy_clone!($ty, $($field,)*);
+		impl<'a> ::core::fmt::Debug for $ty<'a, $crate::pointer::Ref> {
+			fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+				match self {
+					$(Self::$field(this) => { f.debug_tuple(::core::concat!(::core::stringify!($ty), "::", ::core::stringify!($field))).field(this).finish() },)*
+				}
+			}
+		}
+		impl<'a> ::core::cmp::PartialEq for $ty<'a, $crate::pointer::Ref> {
+			fn eq(&self, other: &Self) -> bool {
+				match (self, other) {
+					$((Self::$field(left), Self::$field(right)) => { left == right }, )*
+					_ => false,
+				}
+			}
+		}
+	};
+}
+
 pub mod pointer {
-	#[cfg(feature = "alloc")]
-	use crate::Box;
 	use core::mem::MaybeUninit;
 	use core::ops::{Deref, DerefMut};
 
-	pub const fn as_boxed<'a, T: 'a + ?Sized, P: PointerTo<'a, T>>(ptr: P) -> <P::Pointer as Pointer>::Boxed<'a, T> {
+	pub const fn into_boxed<'a, T: 'a + ?Sized, P: PointerTo<'a, T>>(ptr: P) -> <P::Pointer as Pointer>::Boxed<'a, T> {
 		ptr
+	}
+
+	pub const fn as_ref<'a, T: 'a + ?Sized, P: PointerTo<'a, T>>(ptr: &P) -> &'a T {
+		unsafe { core::mem::transmute_copy::<&P, &&T>(&ptr) }
 	}
 
 	pub trait Pointer: 'static + Clone + core::fmt::Debug + PartialEq + Eq {
@@ -390,14 +435,26 @@ pub mod pointer {
 			assert!(MAX < 256);
 		};
 
-		pub const fn new(values: [T; MIN]) -> Self {
+		pub const fn new(array: [T; MIN]) -> Self {
 			const { Self::__ASSERT__ };
 
 			let mut slice = [const { core::mem::MaybeUninit::uninit() }; MAX];
 			// SAFETY: `MIN <= MAX`, `T: Copy` so there's no drop code running here.
-			unsafe { *((&raw mut slice) as *mut [T; MIN]) = values };
+			unsafe { *((&raw mut slice) as *mut [T; MIN]) = array };
 
 			Self { slice, len: MIN as u8 }
+		}
+
+		pub const fn from_array<const N: usize>(array: [T; N]) -> Self {
+			const { Self::__ASSERT__ };
+			assert!(N >= MIN);
+			assert!(N <= MAX);
+
+			let mut slice = [const { core::mem::MaybeUninit::uninit() }; MAX];
+			// SAFETY: `MIN <= MAX`, `T: Copy` so there's no drop code running here.
+			unsafe { *((&raw mut slice) as *mut [T; N]) = array };
+
+			Self { slice, len: N as u8 }
 		}
 
 		/// # Safety
@@ -501,13 +558,18 @@ pub mod pointer {
 
 		pub use quote::quote;
 
-		pub use alloc::vec;
-		pub use alloc::vec::Vec;
 		pub use std::dbg;
 	}
 
 	#[cfg(test)]
 	pub use reexport::*;
+
+	#[cfg(feature = "alloc")]
+	pub(crate) use crate::Box;
+	#[cfg(feature = "alloc")]
+	pub use alloc::vec;
+	#[cfg(feature = "alloc")]
+	pub use alloc::vec::Vec;
 
 	pub(crate) use crate::prelude::*;
 }
@@ -558,3 +620,5 @@ pub trait Spanned {
 pub mod prelude {
 	pub use crate::{Reborrow, Spanned};
 }
+
+mod unicode;

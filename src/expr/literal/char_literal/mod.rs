@@ -13,20 +13,30 @@ const fn contains_char(needle: char, haystack: &[char]) -> bool {
 }
 
 #[inline]
+const fn contains_ascii_digit(needle: AsciiDigit, haystack: &[AsciiDigit]) -> bool {
+	let mut haystack = haystack;
+	while let Some((&hay, next)) = haystack.split_first() {
+		if needle.as_u8() == hay.as_u8() {
+			return true;
+		}
+		haystack = next;
+	}
+	false
+}
+
+#[inline]
 const fn contains_byte_escape(needle: ByteEscape, haystack: &[ByteEscape]) -> bool {
 	let mut haystack = haystack;
 	while let Some((&hay, next)) = haystack.split_first() {
 		if match (needle, hay) {
-			(ByteEscape::Digits(left), ByteEscape::Digits(right)) => {
-				left.msb.as_byte() == right.msb.as_byte() && left.lsb.as_byte() == right.lsb.as_byte()
-			},
+			(ByteEscape::Digits(left), ByteEscape::Digits(right)) => left.msb.as_u8() == right.msb.as_u8() && left.lsb.as_u8() == right.lsb.as_u8(),
 			(ByteEscape::Null, ByteEscape::Null) => true,
 			(ByteEscape::Backslash, ByteEscape::Backslash) => true,
 			(ByteEscape::LineFeed, ByteEscape::LineFeed) => true,
 			(ByteEscape::CarriageReturn, ByteEscape::CarriageReturn) => true,
 			(ByteEscape::HorizontalTabulation, ByteEscape::HorizontalTabulation) => true,
-			(ByteEscape::SingleQuote, ByteEscape::SingleQuote) => true,
-			(ByteEscape::DoubleQuote, ByteEscape::DoubleQuote) => true,
+			(ByteEscape::Quote(QuoteEscape::Single), ByteEscape::Quote(QuoteEscape::Single)) => true,
+			(ByteEscape::Quote(QuoteEscape::Double), ByteEscape::Quote(QuoteEscape::Double)) => true,
 			_ => false,
 		} {
 			return true;
@@ -36,11 +46,13 @@ const fn contains_byte_escape(needle: ByteEscape, haystack: &[ByteEscape]) -> bo
 	false
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum QuoteEscape {
-	Single,
-	Double,
-}
+derive_enum_debug!(
+	#[derive(Copy, Clone, PartialEq, Eq)]
+	pub enum QuoteEscape {
+		Single,
+		Double,
+	}
+);
 reborrow_copy!(QuoteEscape);
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -75,53 +87,120 @@ impl<const BITS: usize> uint<u8, BITS> {
 	}
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub struct AsciiDigits {
 	pub msb: OctDigit,
 	pub lsb: HexDigit,
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+fn write_hex(x: HexDigit, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+	if x.is_uppercase() {
+		f.write_char(char::from_u32((x.as_u8() - 0xA + b'A') as u32).unwrap())
+	} else {
+		match x.as_u8() {
+			0..=9 => f.write_char(char::from_u32((x.as_u8() + b'0') as u32).unwrap()),
+			0xA..=0xF => f.write_char(char::from_u32((x.as_u8() - 0xA + b'A') as u32).unwrap()),
+			_ => panic!(),
+		}
+	}
+}
+
+impl fmt::Debug for AsciiDigits {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		f.write_str("b\'\\x")?;
+		f.write_char(char::from_u32((self.msb.as_u8() + b'0') as u32).unwrap())?;
+		write_hex(self.lsb, f)?;
+		f.write_char('\'')
+	}
+}
+
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub struct ByteDigits {
 	pub msb: HexDigit,
 	pub lsb: HexDigit,
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum AsciiEscape {
-	Digits(AsciiDigits),
-	Null,
-	Backslash,
-	LineFeed,
-	CarriageReturn,
-	HorizontalTabulation,
+impl fmt::Debug for ByteDigits {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		f.write_str("b\'\\x")?;
+
+		write_hex(self.msb, f)?;
+		write_hex(self.lsb, f)?;
+		f.write_char('\'')
+	}
 }
+
+derive_enum_debug!(
+	#[derive(Copy, Clone, PartialEq, Eq)]
+	pub enum AsciiEscape {
+		Digits(AsciiDigits),
+		Null,
+		Backslash,
+		LineFeed,
+		CarriageReturn,
+		HorizontalTabulation,
+	}
+);
 reborrow_copy!(AsciiEscape);
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum ByteEscape {
-	Digits(ByteDigits),
-	Null,
-	Backslash,
-	LineFeed,
-	CarriageReturn,
-	HorizontalTabulation,
-	SingleQuote,
-	DoubleQuote,
-}
+derive_enum_debug!(
+	#[derive(Copy, Clone, PartialEq, Eq)]
+	pub enum ByteEscape {
+		Digits(ByteDigits),
+		Null,
+		Backslash,
+		LineFeed,
+		CarriageReturn,
+		HorizontalTabulation,
+		Quote(QuoteEscape),
+	}
+);
 reborrow_copy!(ByteEscape);
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct TrailingUnderscores<Digit: Copy> {
+	pub digit: Digit,
+	pub underscore_count: usize,
+}
+reborrow_copy!(TrailingUnderscores<Digit> where Digit: Copy);
+
+impl<Digit: Copy> TrailingUnderscores<Digit> {
+	pub const fn new(digit: Digit, underscore_count: usize) -> Self {
+		Self { digit, underscore_count }
+	}
+}
+
+#[derive(Copy, Clone, PartialEq, Eq)]
+#[repr(transparent)]
 pub struct UnicodeEscape {
-	pub chars: StackVec<(HexDigit, usize), 1, 6>,
+	pub chars: StackVec<TrailingUnderscores<HexDigit>, 1, 6>,
 }
 reborrow_copy!(UnicodeEscape);
+impl fmt::Debug for UnicodeEscape {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		f.write_str("\'\\u{")?;
+		for &c in &*self.chars {
+			write_hex(c.digit, f)?;
+			for _ in 0..c.underscore_count {
+				f.write_char('_')?;
+			}
+		}
+		f.write_str("}\'")
+	}
+}
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq)]
+#[repr(transparent)]
 pub struct NonZeroUnicodeEscape {
-	pub chars: StackVec<(NonZero<HexDigit>, usize), 1, 6>,
+	pub chars: StackVec<TrailingUnderscores<NonZero<HexDigit>>, 1, 6>,
 }
 reborrow_copy!(NonZeroUnicodeEscape);
+
+impl fmt::Debug for NonZeroUnicodeEscape {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		unsafe { core::mem::transmute::<&NonZeroUnicodeEscape, &UnicodeEscape>(self).fmt(f) }
+	}
+}
 
 impl<E: ExcludeList<Type = char>> Exclude<E, char> {
 	pub const fn new(c: char) -> Option<Self> {
@@ -139,6 +218,16 @@ impl<E: ExcludeList<Type = ByteEscape>> Exclude<E, ByteEscape> {
 			None
 		} else {
 			Some(Self { inner: byte })
+		}
+	}
+}
+
+impl<E: ExcludeList<Type = AsciiDigit>> Exclude<E, AsciiDigit> {
+	pub const fn new(digit: AsciiDigit) -> Option<Self> {
+		if contains_ascii_digit(digit, E::EXCLUDED_VALUES) {
+			None
+		} else {
+			Some(Self { inner: digit })
 		}
 	}
 }
@@ -168,20 +257,24 @@ impl ExcludeList for AsciiForbidList {
 }
 pub type AsciiVerbatim = Exclude<AsciiForbidList>;
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum Char {
-	Verbatim(CharVerbatim),
-	Quote(QuoteEscape),
-	Ascii(AsciiEscape),
-	Unicode(UnicodeEscape),
-}
+derive_enum_debug!(
+	#[derive(Copy, Clone, PartialEq, Eq)]
+	pub enum Char {
+		Verbatim(CharVerbatim),
+		Quote(QuoteEscape),
+		Ascii(AsciiEscape),
+		Unicode(UnicodeEscape),
+	}
+);
 reborrow_copy!(Char);
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum Byte {
-	Verbatim(AsciiVerbatim),
-	Byte(ByteEscape),
-}
+derive_enum_debug!(
+	#[derive(Copy, Clone, PartialEq, Eq)]
+	pub enum Byte {
+		Verbatim(AsciiVerbatim),
+		Byte(ByteEscape),
+	}
+);
 reborrow_copy!(Byte);
 
 #[repr(C)]

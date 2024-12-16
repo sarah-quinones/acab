@@ -1,18 +1,22 @@
 use super::*;
 use int_literal::DecLiteral;
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum E {
-	Lowercase,
-	Uppercase,
-}
+derive_enum_debug!(
+	#[derive(Copy, Clone, PartialEq, Eq)]
+	pub enum E {
+		Lowercase,
+		Uppercase,
+	}
+);
 reborrow_copy!(E);
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum Sign {
-	Plus,
-	Minus,
-}
+derive_enum_debug!(
+	#[derive(Copy, Clone, PartialEq, Eq)]
+	pub enum Sign {
+		Plus,
+		Minus,
+	}
+);
 reborrow_copy!(Sign);
 
 #[repr(C)]
@@ -20,7 +24,7 @@ pub struct Exponent<'a, P: Pointer> {
 	pub e: E,
 	pub sign: Option<Sign>,
 	pub leading_underscores: usize,
-	pub digits: P::Boxed<'a, [DecDigit]>,
+	pub digits: DecLiteral<'a, P>,
 }
 as_ref!(Exponent, ExponentBox, ExponentRef, ExponentDyn);
 derive_struct!(Exponent, e, sign, leading_underscores, digits);
@@ -29,7 +33,7 @@ derive_struct!(Exponent, e, sign, leading_underscores, digits);
 pub struct FloatNoExp<'a, P: Pointer> {
 	pub int: DecLiteral<'a, P>,
 	pub frac: DecLiteral<'a, P>,
-	pub suffix: SuffixNoExp<'a, P>,
+	pub suffix: Option<SuffixNoExp<'a, P>>,
 }
 as_ref!(FloatNoExp, FloatNoExpBox, FloatNoExpRef, FloatNoExpDyn);
 derive_struct!(FloatNoExp, int, frac, suffix);
@@ -39,7 +43,7 @@ pub struct FloatExp<'a, P: Pointer> {
 	pub int: DecLiteral<'a, P>,
 	pub frac: Option<DecLiteral<'a, P>>,
 	pub exp: Exponent<'a, P>,
-	pub suffix: Suffix<'a, P>,
+	pub suffix: Option<Suffix<'a, P>>,
 }
 as_ref!(FloatExp, FloatExpBox, FloatExpRef, FloatExpDyn);
 derive_struct!(FloatExp, int, frac, exp, suffix);

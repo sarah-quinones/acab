@@ -1,6 +1,5 @@
 use crate::pointer::*;
 use crate::*;
-use unicode_xid::UnicodeXID;
 
 #[repr(C)]
 pub struct IdentOrKeyword<'a, P: Pointer> {
@@ -59,6 +58,17 @@ pub enum IdentParseError {
 	Reserved,
 }
 
+const fn contains_str(needle: &str, haystack: &[&str]) -> bool {
+	let mut haystack = haystack;
+	while let Some((&hay, next)) = haystack.split_first() {
+		if konst::eq_str(needle, hay) {
+			return true;
+		}
+		haystack = next;
+	}
+	false
+}
+
 impl<'a, P: Pointer> IdentOrKeyword<'a, P> {
 	/// # Safety
 	/// - `source != "_"`
@@ -67,37 +77,42 @@ impl<'a, P: Pointer> IdentOrKeyword<'a, P> {
 	pub const unsafe fn new_unchecked(edition: Edition, source: impl PointerTo<'a, str, Pointer = P>) -> Self {
 		Self {
 			edition,
-			source: as_boxed(source),
+			source: into_boxed(source),
 		}
 	}
 
-	pub fn new(edition: Edition, source: impl PointerTo<'a, str, Pointer = P>) -> Result<Self, IdentOrKeywordParseError> {
-		fn check_valid(edition: Edition, source: &str) -> Result<(), IdentOrKeywordParseError> {
+	pub const fn new(edition: Edition, source: impl PointerTo<'a, str, Pointer = P>) -> Result<Self, (P::Boxed<'a, str>, IdentOrKeywordParseError)> {
+		const fn check_valid(edition: Edition, source: &str) -> Result<(), IdentOrKeywordParseError> {
 			_ = edition;
-			if source == "_" {
+			if konst::eq_str(source, "_") {
 				return Err(IdentOrKeywordParseError::Underscore);
 			}
 
-			let mut chars = source.char_indices();
-			let Some((_, leading)) = chars.next() else {
+			let chars = konst::string::char_indices(source);
+			let Some(((_, leading), mut chars)) = chars.next() else {
 				return Err(IdentOrKeywordParseError::Empty);
 			};
 
-			if leading != '_' && !leading.is_xid_start() {
+			if leading != '_' && !crate::unicode::xid::is_xid_start(leading) {
 				return Err(IdentOrKeywordParseError::InvalidLeadingChar { c: leading });
 			}
 
-			for (i, c) in &mut chars {
-				if !c.is_xid_continue() {
+			while let Some(((i, c), next)) = chars.next() {
+				if !crate::unicode::xid::is_xid_continue(c) {
 					return Err(IdentOrKeywordParseError::InvalidTrailingChar { index: i, c });
 				}
+				chars = next;
 			}
 			Ok(())
 		}
 
-		check_valid(edition, &source)?;
+		let source = into_boxed(source);
+		match check_valid(edition, as_ref(&source)) {
+			Ok(()) => {},
+			Err(e) => return Err((source, e)),
+		};
 		// SAFETY: we just performed a validity check
-		Ok(unsafe { Self::new_unchecked(edition, source) })
+		Ok(Self { edition, source })
 	}
 }
 
@@ -108,26 +123,30 @@ impl<'a, P: Pointer> RawIdent<'a, P> {
 	pub const unsafe fn new_unchecked(edition: Edition, source: impl PointerTo<'a, str, Pointer = P>) -> Self {
 		Self {
 			edition,
-			source: as_boxed(source),
+			source: into_boxed(source),
 		}
 	}
 
-	pub fn new(edition: Edition, source: impl PointerTo<'a, str, Pointer = P>) -> Result<Self, IdentParseError> {
-		fn check_valid(edition: Edition, source: &str) -> Result<(), IdentParseError> {
-			if ["crate", "self", "super", "Self"].contains(&source) {
+	pub const fn new(edition: Edition, source: impl PointerTo<'a, str, Pointer = P>) -> Result<Self, (P::Boxed<'a, str>, IdentParseError)> {
+		const fn check_valid(edition: Edition, source: &str) -> Result<(), IdentParseError> {
+			if contains_str(source, &["crate", "self", "super", "Self"]) {
 				return Err(IdentParseError::Reserved);
 			}
 			match IdentOrKeyword::new(edition, source) {
 				Ok(_) => Ok(()),
-				Err(IdentOrKeywordParseError::Underscore) => Err(IdentParseError::Underscore),
-				Err(IdentOrKeywordParseError::Empty) => Err(IdentParseError::Empty),
-				Err(IdentOrKeywordParseError::InvalidLeadingChar { c }) => Err(IdentParseError::InvalidLeadingChar { c }),
-				Err(IdentOrKeywordParseError::InvalidTrailingChar { index, c }) => Err(IdentParseError::InvalidTrailingChar { index, c }),
+				Err((_, IdentOrKeywordParseError::Underscore)) => Err(IdentParseError::Underscore),
+				Err((_, IdentOrKeywordParseError::Empty)) => Err(IdentParseError::Empty),
+				Err((_, IdentOrKeywordParseError::InvalidLeadingChar { c })) => Err(IdentParseError::InvalidLeadingChar { c }),
+				Err((_, IdentOrKeywordParseError::InvalidTrailingChar { index, c })) => Err(IdentParseError::InvalidTrailingChar { index, c }),
 			}
 		}
 
-		check_valid(edition, &source)?;
-		Ok(unsafe { Self::new_unchecked(edition, source) })
+		let source = into_boxed(source);
+		match check_valid(edition, as_ref(&source)) {
+			Ok(()) => {},
+			Err(e) => return Err((source, e)),
+		}
+		Ok(Self { edition, source })
 	}
 }
 
@@ -144,57 +163,61 @@ impl<'a, P: Pointer> NonKeywordIdent<'a, P> {
 	pub const unsafe fn new_unchecked(edition: Edition, source: impl PointerTo<'a, str, Pointer = P>) -> Self {
 		Self {
 			edition,
-			source: as_boxed(source),
+			source: into_boxed(source),
 		}
 	}
 
-	pub fn new(edition: Edition, source: impl PointerTo<'a, str, Pointer = P>) -> Result<Self, IdentParseError> {
-		fn check_valid(edition: Edition, source: &str) -> Result<(), IdentParseError> {
-			if [
+	pub const fn new(edition: Edition, source: impl PointerTo<'a, str, Pointer = P>) -> Result<Self, (P::Boxed<'a, str>, IdentParseError)> {
+		const fn check_valid(edition: Edition, source: &str) -> Result<(), IdentParseError> {
+			if contains_str(source, &[
 				"as", "break", "const", "continue", "crate", "else", "enum", "extern", "false", "fn", "for", "if", "impl", "in", "let", "loop",
 				"match", "mod", "move", "mut", "pub", "ref", "return", "self", "Self", "static", "struct", "super", "trait", "true", "type",
 				"unsafe", "use", "where", "while", "abstract", "become", "box", "do", "final", "macro", "override", "priv", "typeof", "unsized",
 				"virtual", "yield",
-			]
-			.contains(&source)
-			{
+			]) {
 				return Err(IdentParseError::Reserved);
 			}
 
-			if edition >= Edition::Edition2018 && ["async", "await", "dyn", "try"].contains(&source) {
+			if !matches!(edition, Edition::Edition2015) && contains_str(source, &["async", "await", "dyn", "try"]) {
 				return Err(IdentParseError::Reserved);
 			}
 			match IdentOrKeywordRef::new(edition, source) {
 				Ok(_) => Ok(()),
-				Err(IdentOrKeywordParseError::Underscore) => Err(IdentParseError::Underscore),
-				Err(IdentOrKeywordParseError::Empty) => Err(IdentParseError::Empty),
-				Err(IdentOrKeywordParseError::InvalidLeadingChar { c }) => Err(IdentParseError::InvalidLeadingChar { c }),
-				Err(IdentOrKeywordParseError::InvalidTrailingChar { index, c }) => Err(IdentParseError::InvalidTrailingChar { index, c }),
+				Err((_, IdentOrKeywordParseError::Underscore)) => Err(IdentParseError::Underscore),
+				Err((_, IdentOrKeywordParseError::Empty)) => Err(IdentParseError::Empty),
+				Err((_, IdentOrKeywordParseError::InvalidLeadingChar { c })) => Err(IdentParseError::InvalidLeadingChar { c }),
+				Err((_, IdentOrKeywordParseError::InvalidTrailingChar { index, c })) => Err(IdentParseError::InvalidTrailingChar { index, c }),
 			}
 		}
-		check_valid(edition, &source)?;
-		Ok(unsafe { Self::new_unchecked(edition, source) })
+		let source = into_boxed(source);
+		match check_valid(edition, as_ref(&source)) {
+			Ok(()) => {},
+			Err(e) => return Err((source, e)),
+		}
+		Ok(Self { edition, source })
 	}
 }
 
 impl<'a, P: Pointer> Ident<'a, P> {
-	pub fn new(edition: Edition, source: impl PointerTo<'a, str, Pointer = P>, span: Span) -> Result<Self, IdentParseError> {
-		match NonKeywordIdent::new(edition, source) {
-			Ok(ident) => Ok(Self {
-				span,
-				repr: IdentRepr::Normal(ident),
-			}),
-			Err(e) => Err(e),
+	pub const fn new(
+		edition: Edition,
+		source: impl PointerTo<'a, str, Pointer = P>,
+		span: Span,
+	) -> Result<Self, (P::Boxed<'a, str>, IdentParseError)> {
+		match NonKeywordIdent::new(edition, as_ref(&source)) {
+			Ok(_) => Ok(unsafe { Self::new_unchecked(edition, source, span) }),
+			Err((_, e)) => Err((into_boxed(source), e)),
 		}
 	}
 
-	pub fn raw(edition: Edition, source: impl PointerTo<'a, str, Pointer = P>, span: Span) -> Result<Self, IdentParseError> {
-		match RawIdent::new(edition, source) {
-			Ok(ident) => Ok(Self {
-				span,
-				repr: IdentRepr::Raw(ident),
-			}),
-			Err(e) => Err(e),
+	pub const fn raw(
+		edition: Edition,
+		source: impl PointerTo<'a, str, Pointer = P>,
+		span: Span,
+	) -> Result<Self, (P::Boxed<'a, str>, IdentParseError)> {
+		match RawIdent::new(edition, as_ref(&source)) {
+			Ok(_) => Ok(unsafe { Self::raw_unchecked(edition, source, span) }),
+			Err((_, e)) => Err((into_boxed(source), e)),
 		}
 	}
 
@@ -227,5 +250,11 @@ impl IdentDyn<'_> {
 			IdentRepr::Normal(ident) => ident.source,
 			IdentRepr::Raw(ident) => ident.source,
 		}
+	}
+}
+
+impl IdentOrKeywordDyn<'_> {
+	pub const fn as_str(&self) -> &str {
+		self.rb().source
 	}
 }
