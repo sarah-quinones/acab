@@ -345,7 +345,7 @@ impl StrContentsDyn<'_> {
 	}
 
 	pub const fn get(&self, idx: usize) -> CharForStrRef<'_> {
-		let this = *self.rb();
+		let this = self.rb();
 		match this.char_contents {
 			Some(char_contents) => {
 				let c = char_contents[idx];
@@ -388,7 +388,7 @@ impl ByteStrContentsDyn<'_> {
 	}
 
 	pub const fn get(&self, idx: usize) -> AsciiForStrRef<'_> {
-		let this = *self.rb();
+		let this = self.rb();
 		match this.ascii_contents {
 			Some(ascii_contents) => {
 				let c = ascii_contents[idx];
@@ -431,7 +431,7 @@ impl CStrContentsDyn<'_> {
 	}
 
 	pub const fn get(&self, idx: usize) -> CharForCStrRef<'_> {
-		let this = *self.rb();
+		let this = self.rb();
 		match this.char_contents {
 			Some(char_contents) => {
 				let c = char_contents[idx];

@@ -398,28 +398,6 @@ impl<E: ExcludeList> Exclude<E> {
 	}
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub struct True {
-	pub span: Span,
-}
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub struct False {
-	pub span: Span,
-}
-reborrow_copy!(True);
-reborrow_copy!(False);
-
-impl True {
-	pub const fn span(&self) -> Span {
-		self.span
-	}
-}
-impl False {
-	pub const fn span(&self) -> Span {
-		self.span
-	}
-}
-
 #[non_exhaustive]
 pub enum LiteralExpr<'a, P: Pointer> {
 	Char(char_literal::CharLiteral<'a, P>),
@@ -435,8 +413,8 @@ pub enum LiteralExpr<'a, P: Pointer> {
 	Int(int_literal::IntLiteral<'a, P>),
 	Float(float_literal::FloatLiteral<'a, P>),
 
-	True(True),
-	False(False),
+	True(Keyword![true]),
+	False(Keyword![false]),
 }
 as_ref!(LiteralExpr, LiteralExprBox, LiteralExprRef, LiteralExprDyn);
 derive_enum!(
@@ -486,7 +464,7 @@ mod alloc {
 	use str_literal::*;
 
 	impl LiteralExprBox {
-		pub(crate) fn from_raw(edition: Edition, token: &proc::Literal) -> Self {
+		pub fn from_raw(edition: Edition, token: &proc::Literal) -> Self {
 			let span = Span::from_repr(token.span());
 			let repr = &mut &*token.to_string();
 
@@ -521,6 +499,15 @@ mod alloc {
 				let contents = parse_byte_str_contents(repr);
 				*repr = &repr[1..];
 				return Self::ByteStr(ByteStrLiteral {
+					contents,
+					suffix: parse_maybe_suffix(edition, repr),
+					span,
+				});
+			}
+			if repr.starts_with("c\"") {
+				let contents = parse_cstr_contents(repr);
+				*repr = &repr[1..];
+				return Self::CStr(CStrLiteral {
 					contents,
 					suffix: parse_maybe_suffix(edition, repr),
 					span,
@@ -579,7 +566,7 @@ mod alloc {
 				}
 
 				let e = repr.as_bytes()[0];
-				if e.to_ascii_lowercase() != b'e' {
+				if !e.eq_ignore_ascii_case(&b'e') {
 					FloatLiteralRepr::NoExp(FloatNoExp {
 						int: dec,
 						frac: frac.unwrap(),
@@ -620,7 +607,7 @@ mod alloc {
 				}
 			};
 
-			return Self::Float(FloatLiteral { repr, span });
+			Self::Float(FloatLiteral { repr, span })
 		}
 	}
 
@@ -1231,10 +1218,6 @@ mod alloc {
 		*repr = unsafe { core::str::from_utf8_unchecked(digits.inner) };
 		out
 	}
-
-	fn parse_float(edition: Edition, repr: &mut &str, span: Span) -> FloatLiteralBox {
-		todo!()
-	}
 }
 
 #[cfg(test)]
@@ -1264,23 +1247,21 @@ mod tests {
 		let TokenTree::Literal(c) = quote!('c').into_iter().next().unwrap() else {
 			panic!()
 		};
-		assert_eq!(
-			LiteralExpr::from_raw(EDITION, &c).rb(),
-			&const {
+		assert_eq!(LiteralExpr::from_raw(EDITION, &c).rb(), {
+			const {
 				LiteralExpr::Char(CharLiteral {
 					char: Char::Verbatim(CharVerbatim::new('c').unwrap()),
 					suffix: None,
 					span: Span::call_site(),
 				})
 			}
-		);
+		});
 
 		let TokenTree::Literal(c) = quote!('c'abc).into_iter().next().unwrap() else {
 			panic!()
 		};
-		assert_eq!(
-			LiteralExpr::from_raw(EDITION, &c).rb(),
-			&const {
+		assert_eq!(LiteralExpr::from_raw(EDITION, &c).rb(), {
+			const {
 				LiteralExpr::Char(CharLiteral {
 					char: Char::Verbatim(CharVerbatim::new('c').unwrap()),
 					suffix: Some(Suffix {
@@ -1289,14 +1270,13 @@ mod tests {
 					span: Span::call_site(),
 				})
 			}
-		);
+		});
 
 		let TokenTree::Literal(c) = quote!('\u{0__0a_1B}'invalid_suffix).into_iter().next().unwrap() else {
 			panic!()
 		};
-		assert_eq!(
-			LiteralExpr::from_raw(EDITION, &c).rb(),
-			&const {
+		assert_eq!(LiteralExpr::from_raw(EDITION, &c).rb(), {
+			const {
 				LiteralExpr::Char(CharLiteral {
 					char: Char::Unicode(UnicodeEscape {
 						chars: {
@@ -1315,7 +1295,7 @@ mod tests {
 					span: Span::call_site(),
 				})
 			}
-		);
+		});
 	}
 
 	#[test]
@@ -1325,23 +1305,21 @@ mod tests {
 		let TokenTree::Literal(c) = quote!(b'c').into_iter().next().unwrap() else {
 			panic!()
 		};
-		assert_eq!(
-			LiteralExpr::from_raw(EDITION, &c).rb(),
-			&const {
+		assert_eq!(LiteralExpr::from_raw(EDITION, &c).rb(), {
+			const {
 				LiteralExpr::Byte(ByteLiteral {
 					byte: Byte::Verbatim(AsciiVerbatim::new(AsciiDigit::new(b'c').unwrap()).unwrap()),
 					suffix: None,
 					span: Span::call_site(),
 				})
 			}
-		);
+		});
 
 		let TokenTree::Literal(c) = quote!(b'c'abc).into_iter().next().unwrap() else {
 			panic!()
 		};
-		assert_eq!(
-			LiteralExpr::from_raw(EDITION, &c).rb(),
-			&const {
+		assert_eq!(LiteralExpr::from_raw(EDITION, &c).rb(), {
+			const {
 				LiteralExpr::Byte(ByteLiteral {
 					byte: Byte::Verbatim(AsciiVerbatim::new(AsciiDigit::new(b'c').unwrap()).unwrap()),
 					suffix: Some(Suffix {
@@ -1350,14 +1328,13 @@ mod tests {
 					span: Span::call_site(),
 				})
 			}
-		);
+		});
 
 		let TokenTree::Literal(c) = quote!(b'\xaF'invalid_suffix).into_iter().next().unwrap() else {
 			panic!()
 		};
-		assert_eq!(
-			LiteralExpr::from_raw(EDITION, &c).rb(),
-			&const {
+		assert_eq!(LiteralExpr::from_raw(EDITION, &c).rb(), {
+			const {
 				LiteralExpr::Byte(ByteLiteral {
 					byte: Byte::Byte(ByteEscape::Digits(ByteDigits {
 						msb: HexDigit::HEX_A_LOWERCASE,
@@ -1369,7 +1346,7 @@ mod tests {
 					span: Span::call_site(),
 				})
 			}
-		);
+		});
 	}
 
 	#[test]
@@ -1380,13 +1357,12 @@ mod tests {
 		let TokenTree::Literal(s) = quote!("a \x20 \' \" \u{00__Fa}bc\
 			  def"__my_suffix__).into_iter().next().unwrap() else { panic!() };
 
-		assert_eq!(
-			LiteralExpr::from_raw(EDITION, &s).rb(),
-			&const {
+		assert_eq!(LiteralExpr::from_raw(EDITION, &s).rb(), {
+			const {
 				LiteralExpr::Str(StrLiteral {
 					contents: StrContents::new(
-						const {
-							&[
+						&const {
+							[
 								CharForStr::Verbatim(CharForStrVerbatim::new('a').unwrap()),
 								CharForStr::Verbatim(CharForStrVerbatim::new(' ').unwrap()),
 								CharForStr::Ascii(AsciiEscape::Digits(AsciiDigits {
@@ -1418,8 +1394,8 @@ mod tests {
 								CharForStr::Verbatim(CharForStrVerbatim::new('d').unwrap()),
 								CharForStr::Verbatim(CharForStrVerbatim::new('e').unwrap()),
 								CharForStr::Verbatim(CharForStrVerbatim::new('f').unwrap()),
-							] as &[_]
-						},
+							]
+						} as &[_],
 					),
 					suffix: Some(Suffix {
 						ident: unwrap!(IdentOrKeyword::new(EDITION, "__my_suffix__")),
@@ -1427,7 +1403,7 @@ mod tests {
 					span: Span::call_site(),
 				})
 			}
-		);
+		});
 	}
 
 	#[test]
@@ -1438,13 +1414,12 @@ mod tests {
 		let TokenTree::Literal(s) = quote!(b"a \x20 \' \" bc\
 			  def"__my_suffix__).into_iter().next().unwrap() else { panic!() };
 
-		assert_eq!(
-			LiteralExpr::from_raw(EDITION, &s).rb(),
-			&const {
+		assert_eq!(LiteralExpr::from_raw(EDITION, &s).rb(), {
+			const {
 				LiteralExpr::ByteStr(ByteStrLiteral {
 					contents: ByteStrContents::new(
-						const {
-							&[
+						&const {
+							[
 								AsciiForStr::Verbatim(AsciiForStrVerbatim::new(AsciiDigit::new(b'a').unwrap()).unwrap()),
 								AsciiForStr::Verbatim(AsciiForStrVerbatim::new(AsciiDigit::new(b' ').unwrap()).unwrap()),
 								AsciiForStr::Byte(ByteEscape::Digits(ByteDigits {
@@ -1468,8 +1443,8 @@ mod tests {
 								AsciiForStr::Verbatim(AsciiForStrVerbatim::new(AsciiDigit::new(b'd').unwrap()).unwrap()),
 								AsciiForStr::Verbatim(AsciiForStrVerbatim::new(AsciiDigit::new(b'e').unwrap()).unwrap()),
 								AsciiForStr::Verbatim(AsciiForStrVerbatim::new(AsciiDigit::new(b'f').unwrap()).unwrap()),
-							] as &[_]
-						},
+							]
+						} as &[_],
 					),
 					suffix: Some(Suffix {
 						ident: unwrap!(IdentOrKeyword::new(EDITION, "__my_suffix__")),
@@ -1477,7 +1452,7 @@ mod tests {
 					span: Span::call_site(),
 				})
 			}
-		);
+		});
 	}
 
 	#[test]
@@ -1488,13 +1463,12 @@ mod tests {
 		let TokenTree::Literal(s) = quote!(br###"a \x20 \' \" bc\
 			  de"##f"###__my_suffix__).into_iter().next().unwrap() else { panic!() };
 
-		assert_eq!(
-			LiteralExpr::from_raw(EDITION, &s).rb(),
-			&const {
+		assert_eq!(LiteralExpr::from_raw(EDITION, &s).rb(), {
+			const {
 				LiteralExpr::RawByteStr(RawByteStrLiteral {
 					hash_count: 3,
-					contents: const {
-						&[
+					contents: &const {
+						[
 							AsciiForRawByteStrVerbatim::new(AsciiDigit::new(b'a').unwrap()).unwrap(),
 							AsciiForRawByteStrVerbatim::new(AsciiDigit::new(b' ').unwrap()).unwrap(),
 							AsciiForRawByteStrVerbatim::new(AsciiDigit::new(b'\\').unwrap()).unwrap(),
@@ -1531,7 +1505,7 @@ mod tests {
 					span: Span::call_site(),
 				})
 			}
-		);
+		});
 	}
 
 	#[test]
@@ -1542,13 +1516,12 @@ mod tests {
 		let TokenTree::Literal(s) = quote!(r###"a \x20 \' \" bc\
 			  de"##f"###__my_suffix__).into_iter().next().unwrap() else { panic!() };
 
-		assert_eq!(
-			LiteralExpr::from_raw(EDITION, &s).rb(),
-			&const {
+		assert_eq!(LiteralExpr::from_raw(EDITION, &s).rb(), {
+			const {
 				LiteralExpr::RawStr(RawStrLiteral {
 					hash_count: 3,
-					contents: const {
-						&[
+					contents: &const {
+						[
 							CharForRawStrVerbatim::new('a').unwrap(),
 							CharForRawStrVerbatim::new(' ').unwrap(),
 							CharForRawStrVerbatim::new('\\').unwrap(),
@@ -1585,7 +1558,7 @@ mod tests {
 					span: Span::call_site(),
 				})
 			}
-		);
+		});
 	}
 
 	#[test]
@@ -1596,13 +1569,12 @@ mod tests {
 		let TokenTree::Literal(s) = quote!(cr###"a \x20 \' \" bc\
 			  de"##f"###__my_suffix__).into_iter().next().unwrap() else { panic!() };
 
-		assert_eq!(
-			LiteralExpr::from_raw(EDITION, &s).rb(),
-			&const {
+		assert_eq!(LiteralExpr::from_raw(EDITION, &s).rb(), {
+			const {
 				LiteralExpr::RawCStr(RawCStrLiteral {
 					hash_count: 3,
-					contents: const {
-						&[
+					contents: &const {
+						[
 							CharForRawCStrVerbatim::new('a').unwrap(),
 							CharForRawCStrVerbatim::new(' ').unwrap(),
 							CharForRawCStrVerbatim::new('\\').unwrap(),
@@ -1639,7 +1611,7 @@ mod tests {
 					span: Span::call_site(),
 				})
 			}
-		);
+		});
 	}
 
 	#[test]
@@ -1649,9 +1621,8 @@ mod tests {
 			panic!()
 		};
 
-		assert_eq!(
-			LiteralExpr::from_raw(EDITION, &i).rb(),
-			&const {
+		assert_eq!(LiteralExpr::from_raw(EDITION, &i).rb(), {
+			const {
 				LiteralExpr::Int(IntLiteral {
 					repr: IntLiteralRepr::Bin(unwrap!(BinLiteral::new(&[
 						MaybeUnderscore::Digit(BinDigit::BIN_0),
@@ -1673,16 +1644,15 @@ mod tests {
 					suffix: Some(unwrap!(SuffixNoExp::new(unwrap!(IdentOrKeyword::new(EDITION, "suffix"))))),
 					span: Span::call_site(),
 				})
-			},
-		);
+			}
+		},);
 
 		let TokenTree::Literal(i) = quote!(0o07211_4__101_01suffix).into_iter().next().unwrap() else {
 			panic!()
 		};
 
-		assert_eq!(
-			LiteralExpr::from_raw(EDITION, &i).rb(),
-			&const {
+		assert_eq!(LiteralExpr::from_raw(EDITION, &i).rb(), {
+			const {
 				LiteralExpr::Int(IntLiteral {
 					repr: IntLiteralRepr::Oct(unwrap!(OctLiteral::new(&[
 						MaybeUnderscore::Digit(OctDigit::OCT_0),
@@ -1704,17 +1674,16 @@ mod tests {
 					suffix: Some(unwrap!(SuffixNoExp::new(unwrap!(IdentOrKeyword::new(EDITION, "suffix"))))),
 					span: Span::call_site(),
 				})
-			},
-		);
+			}
+		},);
 
 		#[rustfmt::skip]
 		let TokenTree::Literal(i) = quote!(0x01aA0f0__F01_01suffix).into_iter().next().unwrap() else {
 			panic!()
 		};
 
-		assert_eq!(
-			LiteralExpr::from_raw(EDITION, &i).rb(),
-			&const {
+		assert_eq!(LiteralExpr::from_raw(EDITION, &i).rb(), {
+			const {
 				LiteralExpr::Int(IntLiteral {
 					repr: IntLiteralRepr::Hex(unwrap!(HexLiteral::new(&[
 						MaybeUnderscore::Digit(HexDigit::HEX_0),
@@ -1736,16 +1705,15 @@ mod tests {
 					suffix: Some(unwrap!(SuffixNoExp::new(unwrap!(IdentOrKeyword::new(EDITION, "suffix"))))),
 					span: Span::call_site(),
 				})
-			},
-		);
+			}
+		},);
 
 		let TokenTree::Literal(i) = quote!(007211_4__101_01suffix).into_iter().next().unwrap() else {
 			panic!()
 		};
 
-		assert_eq!(
-			LiteralExpr::from_raw(EDITION, &i).rb(),
-			&const {
+		assert_eq!(LiteralExpr::from_raw(EDITION, &i).rb(), {
+			const {
 				LiteralExpr::Int(IntLiteral {
 					repr: IntLiteralRepr::Dec(unwrap!(DecLiteral::new(&[
 						MaybeUnderscore::Digit(DecDigit::DEC_0),
@@ -1768,8 +1736,8 @@ mod tests {
 					suffix: Some(unwrap!(SuffixNoExp::new(unwrap!(IdentOrKeyword::new(EDITION, "suffix"))))),
 					span: Span::call_site(),
 				})
-			},
-		);
+			}
+		},);
 	}
 
 	#[test]
@@ -1779,9 +1747,8 @@ mod tests {
 			panic!()
 		};
 
-		assert_eq!(
-			LiteralExpr::from_raw(EDITION, &i).rb(),
-			&const {
+		assert_eq!(LiteralExpr::from_raw(EDITION, &i).rb(), {
+			const {
 				LiteralExpr::Float(FloatLiteral {
 					repr: FloatLiteralRepr::NoExp(FloatNoExp {
 						int: unwrap!(DecLiteral::new(&[
@@ -1798,16 +1765,15 @@ mod tests {
 					}),
 					span: Span::call_site(),
 				})
-			},
-		);
+			}
+		},);
 
 		let TokenTree::Literal(i) = quote!(123.456e1suffix).into_iter().next().unwrap() else {
 			panic!()
 		};
 
-		assert_eq!(
-			LiteralExpr::from_raw(EDITION, &i).rb(),
-			&const {
+		assert_eq!(LiteralExpr::from_raw(EDITION, &i).rb(), {
+			const {
 				LiteralExpr::Float(FloatLiteral {
 					repr: FloatLiteralRepr::Exp(FloatExp {
 						int: unwrap!(DecLiteral::new(&[
@@ -1824,7 +1790,7 @@ mod tests {
 							e: E::Lowercase,
 							sign: None,
 							leading_underscores: 0,
-							digits: unwrap!(DecLiteral::new(const { &[MaybeUnderscore::Digit(DecDigit::new(1).unwrap())] as &[_] })),
+							digits: unwrap!(DecLiteral::new(&[MaybeUnderscore::Digit(DecDigit::DEC_1)] as &[_])),
 						},
 						suffix: Some(Suffix {
 							ident: unwrap!(IdentOrKeyword::new(EDITION, "suffix")),
@@ -1832,16 +1798,15 @@ mod tests {
 					}),
 					span: Span::call_site(),
 				})
-			},
-		);
+			}
+		},);
 
 		let TokenTree::Literal(i) = quote!(123.).into_iter().next().unwrap() else {
 			panic!()
 		};
 
-		assert_eq!(
-			LiteralExpr::from_raw(EDITION, &i).rb(),
-			&const {
+		assert_eq!(LiteralExpr::from_raw(EDITION, &i).rb(), {
+			const {
 				LiteralExpr::Float(FloatLiteral {
 					repr: FloatLiteralRepr::Int(unwrap!(DecLiteral::new(&[
 						MaybeUnderscore::Digit(DecDigit::DEC_1),
@@ -1850,16 +1815,15 @@ mod tests {
 					] as &[_]))),
 					span: Span::call_site(),
 				})
-			},
-		);
+			}
+		},);
 
 		let TokenTree::Literal(i) = quote!(123.456e____5___suffix).into_iter().next().unwrap() else {
 			panic!()
 		};
 
-		assert_eq!(
-			LiteralExpr::from_raw(EDITION, &i).rb(),
-			&const {
+		assert_eq!(LiteralExpr::from_raw(EDITION, &i).rb(), {
+			const {
 				LiteralExpr::Float(FloatLiteral {
 					repr: FloatLiteralRepr::Exp(FloatExp {
 						int: unwrap!(DecLiteral::new(&[
@@ -1876,16 +1840,12 @@ mod tests {
 							e: E::Lowercase,
 							sign: None,
 							leading_underscores: 4,
-							digits: unwrap!(DecLiteral::new(
-								const {
-									&[
-										MaybeUnderscore::Digit(DecDigit::new(5).unwrap()),
-										MaybeUnderscore::Underscore,
-										MaybeUnderscore::Underscore,
-										MaybeUnderscore::Underscore,
-									] as &[_]
-								}
-							)),
+							digits: unwrap!(DecLiteral::new(&[
+								MaybeUnderscore::Digit(DecDigit::DEC_5),
+								MaybeUnderscore::Underscore,
+								MaybeUnderscore::Underscore,
+								MaybeUnderscore::Underscore,
+							] as &[_])),
 						},
 						suffix: Some(Suffix {
 							ident: unwrap!(IdentOrKeyword::new(EDITION, "suffix")),
@@ -1893,7 +1853,7 @@ mod tests {
 					}),
 					span: Span::call_site(),
 				})
-			},
-		);
+			}
+		},);
 	}
 }

@@ -262,7 +262,7 @@ impl BinLiteralDyn<'_> {
 
 	pub const fn get(&self, idx: usize) -> MaybeUnderscore<BinDigit> {
 		assert!(idx < self.len());
-		let this = *self.rb();
+		let this = self.rb();
 		match this.contents {
 			repr::BinLiteralRepr::Compressed(this) => {
 				let bits = (this.contents[idx / 4] >> (2 * (idx % 4))) & 0b11;
@@ -296,7 +296,7 @@ impl OctLiteralDyn<'_> {
 
 	pub const fn get(&self, idx: usize) -> MaybeUnderscore<OctDigit> {
 		assert!(idx < self.len());
-		let this = *self.rb();
+		let this = self.rb();
 		match this.contents {
 			repr::OctLiteralRepr::Compressed(this) => {
 				let bits = (this.contents[idx / 2] >> (4 * (idx % 2))) & 0b1111;
@@ -330,7 +330,7 @@ impl HexLiteralDyn<'_> {
 
 	pub const fn get(&self, idx: usize) -> MaybeUnderscore<HexDigit> {
 		assert!(idx < self.len());
-		let this = *self.rb();
+		let this = self.rb();
 		match this.contents {
 			repr::HexLiteralRepr::Compressed(this) => {
 				let bits = this.contents[idx];
@@ -364,7 +364,7 @@ impl DecLiteralDyn<'_> {
 
 	pub const fn get(&self, idx: usize) -> MaybeUnderscore<DecDigit> {
 		assert!(idx < self.len());
-		let this = *self.rb();
+		let this = self.rb();
 
 		match this.contents {
 			repr::DecLiteralRepr::Compressed(this) => {

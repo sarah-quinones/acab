@@ -1,0 +1,120 @@
+use super::Span;
+
+pub trait CheckKeyword {
+	type Span;
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct Keyword<
+	const C_0: char = '\0',
+	const C_1: char = '\0',
+	const C_2: char = '\0',
+	const C_3: char = '\0',
+	const C_4: char = '\0',
+	const C_5: char = '\0',
+	const C_6: char = '\0',
+	const C_7: char = '\0',
+	const C_8: char = '\0',
+	const C_9: char = '\0',
+	const C_10: char = '\0',
+	const C_11: char = '\0',
+	const C_12: char = '\0',
+	const C_13: char = '\0',
+	const C_14: char = '\0',
+	const C_15: char = '\0',
+	const C_16: char = '\0',
+	const C_17: char = '\0',
+	const C_18: char = '\0',
+	const C_19: char = '\0',
+	const C_20: char = '\0',
+	const C_21: char = '\0',
+	const C_22: char = '\0',
+	const C_23: char = '\0',
+> {
+	pub span: Span,
+}
+
+reborrow_copy!(
+	Keyword<
+		C_0,
+		C_1,
+		C_2,
+		C_3,
+		C_4,
+		C_5,
+		C_6,
+		C_7,
+		C_8,
+		C_9,
+		C_10,
+		C_11,
+		C_12,
+		C_13,
+		C_14,
+		C_15,
+		C_16,
+		C_17,
+		C_18,
+		C_19,
+		C_20,
+		C_21,
+		C_22,
+		C_23,
+	> where
+	const C_0: char,
+	const C_1: char,
+	const C_2: char,
+	const C_3: char,
+	const C_4: char,
+	const C_5: char,
+	const C_6: char,
+	const C_7: char,
+	const C_8: char,
+	const C_9: char,
+	const C_10: char,
+	const C_11: char,
+	const C_12: char,
+	const C_13: char,
+	const C_14: char,
+	const C_15: char,
+	const C_16: char,
+	const C_17: char,
+	const C_18: char,
+	const C_19: char,
+	const C_20: char,
+	const C_21: char,
+	const C_22: char,
+	const C_23: char,
+);
+
+impl<
+	const C_0: char,
+	const C_1: char,
+	const C_2: char,
+	const C_3: char,
+	const C_4: char,
+	const C_5: char,
+	const C_6: char,
+	const C_7: char,
+	const C_8: char,
+	const C_9: char,
+	const C_10: char,
+	const C_11: char,
+	const C_12: char,
+	const C_13: char,
+	const C_14: char,
+	const C_15: char,
+	const C_16: char,
+	const C_17: char,
+	const C_18: char,
+	const C_19: char,
+	const C_20: char,
+	const C_21: char,
+	const C_22: char,
+	const C_23: char,
+> Keyword<C_0, C_1, C_2, C_3, C_4, C_5, C_6, C_7, C_8, C_9, C_10, C_11, C_12, C_13, C_14, C_15, C_16, C_17, C_18, C_19, C_20, C_21, C_22, C_23>
+{
+	pub const fn span(&self) -> Span {
+		self.span
+	}
+}

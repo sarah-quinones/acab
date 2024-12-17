@@ -1,4 +1,4 @@
-#![allow(clippy::missing_transmute_annotations)]
+#![allow(clippy::missing_transmute_annotations, clippy::type_complexity, clippy::identity_op)]
 #![deny(elided_lifetimes_in_associated_constant, elided_lifetimes_in_paths, clippy::transmute_undefined_repr)]
 #![cfg_attr(not(test), no_std)]
 
@@ -10,6 +10,79 @@ use core::marker::PhantomData;
 use alloc::boxed::Box;
 
 extern crate proc_macro2 as proc;
+
+#[macro_export]
+macro_rules! Keyword {
+	(as$(,)?) => { $crate::keyword::Keyword<'a', 's'> };
+	(break$(,)?) => { $crate::keyword::Keyword<'b', 'r', 'e', 'a', 'k'> };
+	(const$(,)?) => { $crate::keyword::Keyword<'c', 'o', 'n', 's', 't'> };
+	(continue$(,)?) => { $crate::keyword::Keyword<'c', 'o', 'n', 't', 'i', 'n', 'u', 'e'> };
+	(crate$(,)?) => { $crate::keyword::Keyword<'c', 'r', 'a', 't', 'e'> };
+	(else$(,)?) => { $crate::keyword::Keyword<'e', 'l', 's', 'e'> };
+	(enum$(,)?) => { $crate::keyword::Keyword<'e', 'n', 'u', 'm'> };
+	(extern$(,)?) => { $crate::keyword::Keyword<'e', 'x', 't', 'e', 'r', 'n'> };
+	(false$(,)?) => { $crate::keyword::Keyword<'f', 'a', 'l', 's', 'e'> };
+	(fn$(,)?) => { $crate::keyword::Keyword<'f', 'n'> };
+	(for$(,)?) => { $crate::keyword::Keyword<'f', 'o', 'r'> };
+	(if$(,)?) => { $crate::keyword::Keyword<'i', 'f'> };
+	(impl$(,)?) => { $crate::keyword::Keyword<'i', 'm', 'p', 'l'> };
+	(in$(,)?) => { $crate::keyword::Keyword<'i', 'n'> };
+	(let$(,)?) => { $crate::keyword::Keyword<'l', 'e', 't'> };
+	(loop$(,)?) => { $crate::keyword::Keyword<'l', 'o', 'o', 'p'> };
+	(match$(,)?) => { $crate::keyword::Keyword<'m', 'a', 't', 'c', 'h'> };
+	(mod$(,)?) => { $crate::keyword::Keyword<'m', 'o', 'd'> };
+	(move$(,)?) => { $crate::keyword::Keyword<'m', 'o', 'v', 'e'> };
+	(mut$(,)?) => { $crate::keyword::Keyword<'m', 'u', 't'> };
+	(pub$(,)?) => { $crate::keyword::Keyword<'p', 'u', 'b'> };
+	(ref$(,)?) => { $crate::keyword::Keyword<'r', 'e', 'f'> };
+	(return$(,)?) => { $crate::keyword::Keyword<'r', 'e', 't', 'u', 'r', 'n'> };
+	(self$(,)?) => { $crate::keyword::Keyword<'s', 'e', 'l', 'f'> };
+	(Self$(,)?) => { $crate::keyword::Keyword<'S', 'e', 'l', 'f'> };
+	(static$(,)?) => { $crate::keyword::Keyword<'s', 't', 'a', 't', 'i', 'c'> };
+	(struct$(,)?) => { $crate::keyword::Keyword<'s', 't', 'r', 'u', 'c', 't'> };
+	(super$(,)?) => { $crate::keyword::Keyword<'s', 'u', 'p', 'e', 'r'> };
+	(trait$(,)?) => { $crate::keyword::Keyword<'t', 'r', 'a', 'i', 't'> };
+	(true$(,)?) => { $crate::keyword::Keyword<'t', 'r', 'u', 'e'> };
+	(type$(,)?) => { $crate::keyword::Keyword<'t', 'y', 'p', 'e'> };
+	(unsafe$(,)?) => { $crate::keyword::Keyword<'u', 'n', 's', 'a', 'f', 'e'> };
+	(use$(,)?) => { $crate::keyword::Keyword<'u', 's', 'e'> };
+	(where$(,)?) => { $crate::keyword::Keyword<'w', 'h', 'e', 'r', 'e'> };
+	(while$(,)?) => { $crate::keyword::Keyword<'w', 'h', 'i', 'l', 'e'> };
+	(abstract$(,)?) => { $crate::keyword::Keyword<'a', 'b', 's', 't', 'r', 'a', 'c', 't'> };
+	(become$(,)?) => { $crate::keyword::Keyword<'b', 'e', 'c', 'o', 'm', 'e'> };
+	(box$(,)?) => { $crate::keyword::Keyword<'b', 'o', 'x'> };
+	(do$(,)?) => { $crate::keyword::Keyword<'d', 'o'> };
+	(final$(,)?) => { $crate::keyword::Keyword<'f', 'i', 'n', 'a', 'l'> };
+	(macro$(,)?) => { $crate::keyword::Keyword<'m', 'a', 'c', 'r', 'o'> };
+	(override$(,)?) => { $crate::keyword::Keyword<'o', 'v', 'e', 'r', 'r', 'i', 'd', 'e'> };
+	(priv$(,)?) => { $crate::keyword::Keyword<'p', 'r', 'i', 'v'> };
+	(typeof$(,)?) => { $crate::keyword::Keyword<'t', 'y', 'p', 'e', 'o', 'f'> };
+	(unsized$(,)?) => { $crate::keyword::Keyword<'u', 'n', 's', 'i', 'z', 'e', 'd'> };
+	(virtual$(,)?) => { $crate::keyword::Keyword<'v', 'i', 'r', 't', 'u', 'a', 'l'> };
+	(yield$(,)?) => { $crate::keyword::Keyword<'y', 'i', 'e', 'l', 'd'> };
+	(async$(,)?) => { $crate::keyword::Keyword<'a', 's', 'y', 'n', 'c'> };
+	(await$(,)?) => { $crate::keyword::Keyword<'a', 'w', 'a', 'i', 't'> };
+	(dyn$(,)?) => { $crate::keyword::Keyword<'d', 'y', 'n'> };
+	(try$(,)?) => { $crate::keyword::Keyword<'t', 'r', 'y'> };
+	(macro_rules$(,)?) => { $crate::keyword::Keyword<'m', 'a', 'c', 'r', 'o', '_', 'r', 'u', 'l', 'e', 's'> };
+	(union$(,)?) => { $crate::keyword::Keyword<'u', 'n', 'i', 'o', 'n'> };
+	(_$(,)?) => { $crate::keyword::Keyword<'_'> };
+}
+
+#[doc(hidden)]
+pub type Identity<T> = T;
+
+#[macro_export]
+macro_rules! keyword {
+	($tt: tt $(,)?) => {
+		$crate::Identity::<$crate::Keyword![$tt]> {
+			span: $crate::span::Span::call_site(),
+		}
+	};
+	($tt: tt, $span: expr $(,)?) => {
+		$crate::Identity::<$crate::Keyword![$tt]> { span: $span }
+	};
+}
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Edition {
@@ -53,16 +126,16 @@ macro_rules! derive_enum_debug {
 macro_rules! reborrow_copy {
 	($ty: ty $( where $($def: tt)*)? ) => {
 		impl<'a $(,$($def)*)?> $crate::ReborrowTarget<'a> for $ty {
-			type Ref = &'a Self;
+			type Ref = Self;
 		}
 
-		impl<$($($def)*)?> $crate::Reborrow for $ty {
+		unsafe impl<$($($def)*)?> $crate::Reborrow for $ty {
 			#[cfg(feature = "alloc")]
 			type Box = Self;
 			type Target = Self;
 
 			fn __rb(&self) -> <Self::Target as $crate::ReborrowTarget<'_>>::Ref {
-				self
+				*self
 			}
 
 			#[cfg(feature = "alloc")]
@@ -81,23 +154,23 @@ reborrow_copy!(u32);
 reborrow_copy!(u64);
 reborrow_copy!(usize);
 
-impl<'a> ReborrowTarget<'a> for str {
-	type Ref = &'a Self;
+impl<'a> ReborrowTarget<'a> for &'static str {
+	type Ref = &'a str;
 }
-impl<'a, T> ReborrowTarget<'a> for [T] {
-	type Ref = &'a Self;
+impl<'a, T: ReborrowTarget<'a>> ReborrowTarget<'a> for PhantomData<[T]> {
+	type Ref = &'a [T::Ref];
 }
-impl<'a, T: ?Sized + ReborrowTarget<'a>> ReborrowTarget<'a> for Option<PhantomData<T>> {
+impl<'a, T: ?Sized + ReborrowTarget<'a>> ReborrowTarget<'a> for Box<T> {
+	type Ref = T::Ref;
+}
+impl<'a, T: ReborrowTarget<'a>> ReborrowTarget<'a> for Option<T> {
 	type Ref = Option<T::Ref>;
 }
-impl<'a, T: ?Sized + ReborrowTarget<'a>, U: ?Sized + ReborrowTarget<'a>> ReborrowTarget<'a> for (PhantomData<T>, PhantomData<U>) {
-	type Ref = (T::Ref, U::Ref);
-}
 
-impl Reborrow for &str {
+unsafe impl Reborrow for &str {
 	#[cfg(feature = "alloc")]
 	type Box = Box<str>;
-	type Target = str;
+	type Target = &'static str;
 
 	fn __rb(&self) -> <Self::Target as ReborrowTarget<'_>>::Ref {
 		self
@@ -109,13 +182,29 @@ impl Reborrow for &str {
 	}
 }
 
-impl<T: Reborrow> Reborrow for &[T] {
+#[cfg(feature = "alloc")]
+unsafe impl<T: ?Sized + Reborrow> Reborrow for Box<T> {
 	#[cfg(feature = "alloc")]
-	type Box = Box<[T::Box]>;
-	type Target = [T];
+	type Box = Box<T::Box>;
+	type Target = Box<T::Target>;
 
 	fn __rb(&self) -> <Self::Target as ReborrowTarget<'_>>::Ref {
-		self
+		(**self).__rb()
+	}
+
+	#[cfg(feature = "alloc")]
+	fn to_box(&self) -> Self::Box {
+		Box::new((**self).to_box())
+	}
+}
+
+unsafe impl<T: Reborrow> Reborrow for &[T] {
+	#[cfg(feature = "alloc")]
+	type Box = Box<[T::Box]>;
+	type Target = PhantomData<[T::Target]>;
+
+	fn __rb(&self) -> <Self::Target as ReborrowTarget<'_>>::Ref {
+		unsafe { core::slice::from_raw_parts(self.as_ptr() as *const <T::Target as ReborrowTarget<'_>>::Ref, self.len()) }
 	}
 
 	#[cfg(feature = "alloc")]
@@ -124,10 +213,10 @@ impl<T: Reborrow> Reborrow for &[T] {
 	}
 }
 
-impl<T: Reborrow> Reborrow for Option<T> {
+unsafe impl<T: Reborrow> Reborrow for Option<T> {
 	#[cfg(feature = "alloc")]
 	type Box = Option<T::Box>;
-	type Target = Option<PhantomData<T::Target>>;
+	type Target = Option<T::Target>;
 
 	fn __rb(&self) -> <Self::Target as ReborrowTarget<'_>>::Ref {
 		self.as_ref().map(|this| this.__rb())
@@ -139,20 +228,6 @@ impl<T: Reborrow> Reborrow for Option<T> {
 	}
 }
 
-impl<T: Reborrow, U: Reborrow> Reborrow for (T, U) {
-	#[cfg(feature = "alloc")]
-	type Box = (T::Box, U::Box);
-	type Target = (PhantomData<T::Target>, PhantomData<U::Target>);
-
-	fn __rb(&self) -> <Self::Target as ReborrowTarget<'_>>::Ref {
-		(self.0.__rb(), self.1.__rb())
-	}
-
-	#[cfg(feature = "alloc")]
-	fn to_box(&self) -> Self::Box {
-		(self.0.to_box(), self.1.to_box())
-	}
-}
 // as_ref!(X, XBox, XRef, XDyn);
 macro_rules! as_ref {
 	($ty: ident, $boxed: ident, $reference: ident, $dyn: ident) => {
@@ -180,8 +255,8 @@ macro_rules! as_ref {
 		}
 
 		impl<'a, P: $crate::pointer::Pointer> $ty<'a, P> {
-			pub const fn rb(&self) -> &'_ $ty<'_, $crate::pointer::Ref> {
-				unsafe { &*(self as *const _ as *const _) }
+			pub const fn rb(&self) -> $ty<'_, $crate::pointer::Ref> {
+				unsafe { *(self as *const _ as *const _) }
 			}
 
 			pub const fn as_dyn(&self) -> &$dyn<'a> {
@@ -189,22 +264,22 @@ macro_rules! as_ref {
 			}
 		}
 		impl $dyn<'_> {
-			pub const fn rb(&self) -> &'_ $ty<'_, $crate::pointer::Ref> {
-				unsafe { &*(self as *const _ as *const _) }
+			pub const fn rb(&self) -> $ty<'_, $crate::pointer::Ref> {
+				unsafe { *(self as *const _ as *const _) }
 			}
 		}
 
 		impl<'a> $crate::ReborrowTarget<'a> for $reference<'static> {
-			type Ref = &'a $ty<'a, $crate::pointer::Ref>;
+			type Ref = $ty<'a, $crate::pointer::Ref>;
 		}
-		impl<'a, P: $crate::pointer::Pointer> $crate::Reborrow for $ty<'a, P> {
+		unsafe impl<'a, P: $crate::pointer::Pointer> $crate::Reborrow for $ty<'a, P> {
 			#[cfg(feature = "alloc")]
 			type Box = $boxed;
 			type Target = $reference<'static>;
 
 			fn __rb(&self) -> <Self::Target as $crate::ReborrowTarget<'_>>::Ref {
 				// SAFETY: same layout
-				unsafe { &*(self as *const _ as *const _) }
+				unsafe { *(self as *const _ as *const _) }
 			}
 
 			#[cfg(feature = "alloc")]
@@ -230,7 +305,7 @@ macro_rules! derive_struct_copy_clone {
 		#[cfg(feature = "alloc")]
 		impl<'a> ::core::fmt::Debug for $ty<'a, $crate::pointer::Boxed> {
 			fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-				::core::fmt::Debug::fmt($crate::Reborrow::__rb(self), f)
+				::core::fmt::Debug::fmt(&$crate::Reborrow::__rb(self), f)
 			}
 		}
 
@@ -287,7 +362,7 @@ macro_rules! derive_enum_copy_clone {
 		#[cfg(feature = "alloc")]
 		impl<'a> ::core::fmt::Debug for $ty<'a, $crate::pointer::Boxed> {
 			fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-				::core::fmt::Debug::fmt($crate::Reborrow::__rb(self), f)
+				::core::fmt::Debug::fmt(&$crate::Reborrow::__rb(self), f)
 			}
 		}
 
@@ -326,6 +401,7 @@ macro_rules! derive_enum {
 			fn eq(&self, other: &Self) -> bool {
 				match (self, other) {
 					$((Self::$field(left), Self::$field(right)) => { left == right }, )*
+					#[allow(unreachable_patterns)]
 					_ => false,
 				}
 			}
@@ -574,23 +650,31 @@ pub mod pointer {
 	pub(crate) use crate::prelude::*;
 }
 
-pub mod expr;
+pub mod delimited;
 pub mod ident;
 pub mod keyword;
+pub mod lifetime;
+pub mod punct;
+pub mod sep;
 pub mod span;
+
+pub mod expr;
+pub mod ty;
 
 pub use expr::Expr;
 pub use ident::Ident;
 pub use span::Span;
 
 pub trait ReborrowTarget<'a, Outlives = &'a Self> {
-	type Ref;
+	type Ref: Copy;
 }
 
-pub trait Reborrow {
+/// # Safety
+/// `Self::Target::Ref` must have the same layout as `Self`
+pub unsafe trait Reborrow {
 	#[cfg(feature = "alloc")]
 	type Box;
-	type Target: ?Sized + for<'a> ReborrowTarget<'a>;
+	type Target: for<'a> ReborrowTarget<'a>;
 
 	fn __rb(&self) -> <Self::Target as ReborrowTarget<'_>>::Ref;
 
@@ -598,18 +682,25 @@ pub trait Reborrow {
 	fn to_box(&self) -> Self::Box;
 }
 
-impl<T: ?Sized + Reborrow> Reborrow for &T {
+pub struct ReborrowRef<T> {
+	__: T,
+}
+impl<'a, T: ReborrowTarget<'a>> ReborrowTarget<'a> for ReborrowRef<&T> {
+	type Ref = &'a T::Ref;
+}
+
+unsafe impl<'a, T: ?Sized + Reborrow> Reborrow for &'a T {
 	#[cfg(feature = "alloc")]
-	type Box = T::Box;
-	type Target = T::Target;
+	type Box = Box<T::Box>;
+	type Target = ReborrowRef<&'a T::Target>;
 
 	fn __rb(&self) -> <Self::Target as ReborrowTarget<'_>>::Ref {
-		(**self).__rb()
+		unsafe { *(self as *const &'_ T as *const &'_ <T::Target as ReborrowTarget<'_>>::Ref) }
 	}
 
 	#[cfg(feature = "alloc")]
 	fn to_box(&self) -> Self::Box {
-		(**self).to_box()
+		Box::new((**self).to_box())
 	}
 }
 
